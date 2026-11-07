@@ -142,3 +142,25 @@ The Home Assistant integration scans the configured media directory on startup a
 To rescan immediately, open **Settings → Devices & services → Devices → WallPanel Photo Selector** and press **Rescan photos**. You can also use the Home Assistant `button.press` action on the new `button.*_rescan_photos` entity in an automation. The **Scan status** and **Last scan** sensors show progress and completion. Automatic and manual scans are serialized to prevent overlapping work.
 
 After installing a new integration release through HACS, restart Home Assistant to load the Python integration changes and register the new button.
+# Optional viewer-based photo weighting
+
+With the updated backend and local recognition worker, set
+`photo_selector_viewer_entity: sensor.wallpanel_photo_selector_viewer_match` in
+your existing `wallpanel:` configuration and use `media_order: random` with
+`photo_selector_enabled: true`. Verify the sensor's actual entity ID in HA.
+
+Photo weights become the existing rating weight multiplied by `1 + 9 × n²`,
+where `n` is the number of matched people seen in the last 15 minutes. Other
+photos retain their normal weights; excluded ratings remain excluded. This
+favours groups without restricting the slideshow to a small matching subset.
+
+With this option enabled, `photo_selector_history_size` is used without the
+normal 25% cap. History exclusions are released oldest-first only if every
+eligible photo is blocked; the current photo is not immediately repeated when
+another eligible image exists. History counts selections, is local to the
+dashboard session, and resets on reload. With no fresh recognition data,
+selection uses the normal rating weights.
+
+The worker reads exported JPEGs without modifying originals or Lightroom data.
+See the [backend setup guide](https://github.com/g-j-h-1/ha-wallpanel-photo-selector/blob/main/recognition/README.md)
+for service installation, camera/presence entities and commissioning checks.

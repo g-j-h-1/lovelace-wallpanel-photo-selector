@@ -1,11 +1,11 @@
-import { matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize } from "./photo-selector.mjs";
+import { matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize, selectViewerPhoto } from "./photo-selector.mjs";
 
 /**
  * (C) 2020-2026 by Jan Schneider (oss@janschneider.net)
  * Released under the GNU General Public License v3.0
  */
 
-const version = "4.68.0";
+const version = "4.69.0";
 const mediaLoadRetryDelay = 1000;
 const mediaListRetryDelay = 3000;
 const mediaListRateLimitRetryDelay = 60000;
@@ -77,6 +77,7 @@ const defaultConfig = {
 	media_list_max_size: 500,
 	media_order: "random", // sorted / random / random_but_synced / random_path
 	photo_selector_enabled: false, // Use WallPanel Photo Selector metadata for local media sources
+	photo_selector_viewer_entity: "", // Optional Viewer match sensor supplied by the backend
 	photo_selector_history_size: 5, // Number of recently displayed photos to avoid (0 disables)
 	photo_selector_filename_include: "",
 	photo_selector_filename_exclude: "",
@@ -4112,9 +4113,14 @@ function initWallpanel() {
 				return null;
 			}
 			if (config.photo_selector_enabled && config.media_order == "random" && this.photoSelectorCandidates) {
-				const historySize = effectiveHistorySize(this.photoSelectorCandidates, config.photo_selector_history_size ?? 5);
+				const viewerEnabled = Boolean(config.photo_selector_viewer_entity);
+				const historySize = viewerEnabled
+					? Math.max(0, Math.floor(Number(config.photo_selector_history_size) || 0))
+					: effectiveHistorySize(this.photoSelectorCandidates, config.photo_selector_history_size ?? 5);
 				const recent = (this.photoSelectorRecent || []).slice(-Math.max(1, historySize));
-				const selected = selectPhoto(this.photoSelectorCandidates, recent, historySize);
+				const selected = viewerEnabled
+					? selectViewerPhoto(this.photoSelectorCandidates, this.hass?.states?.[config.photo_selector_viewer_entity], recent, historySize)
+					: selectPhoto(this.photoSelectorCandidates, recent, historySize);
 				if (updateIndex && selected) {
 					this.photoSelectorRecent = [...recent, selected].slice(-Math.max(1, historySize));
 					this.mediaIndex = this.mediaList.indexOf(selected);
