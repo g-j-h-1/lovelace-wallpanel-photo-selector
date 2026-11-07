@@ -58,6 +58,39 @@ export function filterPhotos(items, include = "", exclude = "") {
     return (!includeRegex || includeRegex.test(filename)) && (!excludeRegex || !excludeRegex.test(filename));
   });
 }
+
+/** Boost rating weights for remembered visitors; keep the full library available. */
+export function viewerPhotoPool(items, state, now = Date.now()) {
+  const expires = Date.parse(state?.attributes?.expires_at || "");
+  const matches = state?.attributes?.matches;
+  if (state?.state !== "matched" || !Number.isFinite(expires) || expires <= now || !Array.isArray(matches)) return items;
+  const counts = new Map(matches.filter(m => m && typeof m.path === "string" && Number.isInteger(m.people) && m.people > 0).map(m => [m.path, m.people]));
+  return items.map(item => {
+    const people = Math.min(100, counts.get(item.path) || 0);
+    return { ...item, weight: Number(item.weight) * (1 + 9 * people * people) };
+  });
+}
+
+/** Keep history strict while alternatives exist, releasing oldest entries on exhaustion. */
+export function selectViewerPhoto(items, state, recent = [], historySize = 50, random = Math.random, now = Date.now()) {
+  const size = Math.max(0, Math.floor(Number(historySize) || 0));
+  const weighted = viewerPhotoPool(items, state, now).filter(item => Number.isFinite(item.weight) && item.weight > 0);
+  if (!weighted.length) return null;
+  const last = recent.at(-1);
+  const pool = weighted.length > 1 ? weighted.filter(item => item.url !== last) : weighted;
+  let history = size ? recent.slice(-size) : [];
+  let available = pool.filter(item => !history.includes(item.url));
+  while (!available.length && history.length) {
+    history = history.slice(1);
+    available = pool.filter(item => !history.includes(item.url));
+  }
+  if (!available.length) available = pool;
+  const previous = weighted.find(item => item.url === last);
+  if (previous?.orientation === "portrait" && available.some(item => item.orientation === "landscape")) {
+    available = available.filter(item => item.orientation === "landscape");
+  }
+  return selectPhoto(available, [], 0, random);
+}
 /**
  * Match Home Assistant media-source IDs to scanner-relative photo metadata.
  * WallPanel's media browser supplies IDs such as
@@ -82,7 +115,7 @@ export function matchPhotoMetadata(urls, photos, mediaFolder = "PortalPhotos", r
     }
     const photo = metadata.get(relativePath);
     return photo
-      ? { url, weight: getRatingFrequency(photo.rating, ratingFrequencies), orientation: photo.orientation }
+      ? { url, path: photo.path, weight: getRatingFrequency(photo.rating, ratingFrequencies), orientation: photo.orientation }
       : null;
   });
   return candidates.filter(Boolean);
