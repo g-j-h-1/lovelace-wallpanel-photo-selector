@@ -39,8 +39,13 @@ export function selectPhoto(items, recent = [], historySize = 5, random = Math.r
   // If no eligible matching photograph exists, retain the ordinary slideshow.
   const preferred = new Set(preferredNames.map(name => String(name).trim().toLocaleLowerCase()).filter(Boolean));
   if (preferred.size) {
-    const matches = eligible.filter(item => (item.people || []).some(name => preferred.has(String(name).trim().toLocaleLowerCase())));
-    if (matches.length) eligible = matches;
+    // Prefer the photograph containing the greatest number of currently
+    // recognised people, rather than treating any single match equally.
+    const matchCount = item => new Set((item.people || [])
+      .map(name => String(name).trim().toLocaleLowerCase())
+      .filter(name => preferred.has(name))).size;
+    const bestCount = Math.max(0, ...eligible.map(matchCount));
+    if (bestCount > 0) eligible = eligible.filter(item => matchCount(item) === bestCount);
   }
   const total = eligible.reduce((sum, item) => sum + Number(item.weight), 0);
   let ticket = Math.max(0, Math.min(1 - Number.EPSILON, random())) * total;
