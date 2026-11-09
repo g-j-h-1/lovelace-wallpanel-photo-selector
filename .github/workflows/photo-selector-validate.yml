@@ -2,11 +2,10 @@ name: Photo Selector validation
 
 on:
   push:
-    branches: [photo-selection, main, face-aware-slideshow]
+    branches: [photo-selection, main]
     paths:
       - 'photo-selector.mjs'
       - 'wallpanel-src.js'
-      - 'custom_components/wallpanel_photo_selector/**'
       - 'tests/**'
       - 'package.json'
       - 'package-lock.json'
@@ -28,17 +27,12 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: package-lock.json
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - name: Check JavaScript syntax
         run: |
           node --check wallpanel-src.js
           node --check photo-selector.mjs
       - name: JavaScript unit tests
         run: node --test tests/*.test.mjs tests/*.test.cjs
-      - name: Python scanner tests
-        run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Install build dependencies
         run: npm ci
       - name: Build wallpanel.js
