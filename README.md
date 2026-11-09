@@ -60,7 +60,7 @@ The sidebar should be hidden and the screensaver should start after an idle time
 
 ## Photo Selector: orientation-aware cards
 
-With the optional WallPanel Photo Selector integration enabled, individual screensaver
+With the separate [WallPanel Photo Selector server integration](https://github.com/g-j-h-1/ha-wallpanel-photo-selector) installed, individual screensaver
 cards can be shown only for particular photograph orientations. The orientation is
 determined from the loaded image's actual dimensions when the image becomes active.
 
@@ -137,7 +137,7 @@ For `20261025_Rugby vs Leicester_IMG1234.jpg`, segment `0` is `20261025`, segmen
 
 ### Automatic and manual photo rescans
 
-The Home Assistant integration scans the configured media directory on startup and automatically repeats scans at the configured `scan_interval` (minutes; default 15). The next scheduled scan is measured from the completion of the previous scan.
+The [separate Home Assistant server integration](https://github.com/g-j-h-1/ha-wallpanel-photo-selector) scans the configured media directory on startup and automatically repeats scans at the configured `scan_interval` (minutes; default 15). The next scheduled scan is measured from the completion of the previous scan.
 
 To rescan immediately, open **Settings → Devices & services → Devices → WallPanel Photo Selector** and press **Rescan photos**. You can also use the Home Assistant `button.press` action on the new `button.*_rescan_photos` entity in an automation. The **Scan status** and **Last scan** sensors show progress and completion. Automatic and manual scans are serialized to prevent overlapping work.
 
@@ -173,8 +173,14 @@ selection continues. Unrated photos remain governed by configured rating frequen
 zero-weight photos are never displayed. Several recognised people are matched with
 OR semantics (photos containing any recognised person).
 
-The server-side integration reads this file when the browser requests photo metadata;
+The [server-side integration](https://github.com/g-j-h-1/ha-wallpanel-photo-selector) reads this file when the browser requests photo metadata;
 the slideshow reads the live helper state at each photo transition. You must refresh
 the WallPanel media list (or reload the dashboard) for changes to the JSON index to
 appear. The JSON is metadata only and is ignored by the JPEG scanner. No Immich API
 key or database credentials are stored in Home Assistant.
+
+## Repository responsibilities
+
+This repository contains the **kiosk/Lovelace frontend** and its JavaScript tests. It is installed through HACS as a dashboard frontend resource (`wallpanel.js`).
+
+The **Home Assistant backend** is maintained separately in [ha-wallpanel-photo-selector](https://github.com/g-j-h-1/ha-wallpanel-photo-selector). Install and update that repository separately through HACS for photo scanning, rating metadata, the Photo Library, and Immich person indexing. The backend's Python code and tests belong in that server repository, not here.
