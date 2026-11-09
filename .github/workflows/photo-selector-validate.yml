@@ -2,7 +2,7 @@ name: Photo Selector validation
 
 on:
   push:
-    branches: [photo-selection, main]
+    branches: [photo-selection, main, face-aware-slideshow]
     paths:
       - 'photo-selector.mjs'
       - 'wallpanel-src.js'
@@ -11,6 +11,8 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/photo-selector-validate.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -36,7 +38,7 @@ jobs:
       - name: JavaScript unit tests
         run: node --test tests/*.test.mjs tests/*.test.cjs
       - name: Python scanner tests
-        run: python -m unittest discover -s tests -p 'test_wallpanel_photo_selector_scanner.py'
+        run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Install build dependencies
         run: npm ci
       - name: Build wallpanel.js
@@ -47,6 +49,7 @@ jobs:
           grep -q 'show_on_orientation' wallpanel.js
           grep -q 'photo_selector_rating_frequencies' wallpanel.js
           grep -q 'photo_selector_history_size' wallpanel.js
+          grep -q 'photo_selector_person_entity' wallpanel.js
       - name: Commit compiled frontend on main
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |

@@ -142,3 +142,39 @@ The Home Assistant integration scans the configured media directory on startup a
 To rescan immediately, open **Settings → Devices & services → Devices → WallPanel Photo Selector** and press **Rescan photos**. You can also use the Home Assistant `button.press` action on the new `button.*_rescan_photos` entity in an automation. The **Scan status** and **Last scan** sensors show progress and completion. Automatic and manual scans are serialized to prevent overlapping work.
 
 After installing a new integration release through HACS, restart Home Assistant to load the Python integration changes and register the new button.
+
+## Person-aware slideshow (optional)
+
+With Immich face metadata exported into `/media/PortalPhotos/immich-people.json`, the
+Photo Selector can prefer photographs containing people recognised by the Portal Mini.
+The JSON file maps paths relative to `/media/PortalPhotos` to arrays of names:
+
+```json
+{
+  "example.jpg": ["Person A", "Person B"]
+}
+```
+
+Enable the feature on the Portal dashboard:
+
+```yaml
+wallpanel:
+  photo_selector_enabled: true
+  media_order: random
+  photo_selector_person_entity: input_text.portal_recognised_people
+```
+
+An empty or omitted entity setting disables person preference. The Home Assistant
+helper can contain comma-separated names, `Unknown`, or `None`. On each photo
+transition, matching photographs are preferred among photos still eligible under
+the existing **rating**, **portrait-to-landscape** and **repeat-history** rules.
+If there are no eligible photos of the recognised person, ordinary weighted random
+selection continues. Unrated photos remain governed by configured rating frequencies;
+zero-weight photos are never displayed. Several recognised people are matched with
+OR semantics (photos containing any recognised person).
+
+The server-side integration reads this file when the browser requests photo metadata;
+the slideshow reads the live helper state at each photo transition. You must refresh
+the WallPanel media list (or reload the dashboard) for changes to the JSON index to
+appear. The JSON is metadata only and is ignored by the JPEG scanner. No Immich API
+key or database credentials are stored in Home Assistant.
