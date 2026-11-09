@@ -1,4 +1,4 @@
-import { matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize } from "./photo-selector.mjs";
+import { matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize, parseRecognisedPeople } from "./photo-selector.mjs";
 
 /**
  * (C) 2020-2026 by Jan Schneider (oss@janschneider.net)
@@ -78,6 +78,7 @@ const defaultConfig = {
 	media_order: "random", // sorted / random / random_but_synced / random_path
 	photo_selector_enabled: false, // Use WallPanel Photo Selector metadata for local media sources
 	photo_selector_history_size: 5, // Number of recently displayed photos to avoid (0 disables)
+	photo_selector_person_entity: "", // Optional Home Assistant input_text entity with comma-separated recognised names
 	photo_selector_filename_include: "",
 	photo_selector_filename_exclude: "",
 	photo_selector_show_filename: false,
@@ -4114,7 +4115,10 @@ function initWallpanel() {
 			if (config.photo_selector_enabled && config.media_order == "random" && this.photoSelectorCandidates) {
 				const historySize = effectiveHistorySize(this.photoSelectorCandidates, config.photo_selector_history_size ?? 5);
 				const recent = (this.photoSelectorRecent || []).slice(-Math.max(1, historySize));
-				const selected = selectPhoto(this.photoSelectorCandidates, recent, historySize);
+				const preferredNames = parseRecognisedPeople(
+					this.__hass?.states?.[config.photo_selector_person_entity]?.state
+				);
+				const selected = selectPhoto(this.photoSelectorCandidates, recent, historySize, Math.random, preferredNames);
 				if (updateIndex && selected) {
 					this.photoSelectorRecent = [...recent, selected].slice(-Math.max(1, historySize));
 					this.mediaIndex = this.mediaList.indexOf(selected);

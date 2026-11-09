@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getRatingFrequency, matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize } from "../photo-selector.mjs";
+import { getRatingFrequency, matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize, parseRecognisedPeople } from "../photo-selector.mjs";
 
 const photos = [
   { url: "p", orientation: "portrait", weight: 1 },
@@ -65,4 +65,38 @@ test("metadata matching is restricted to the indexed media folder", () => {
   ];
   const matched = matchPhotoMetadata(urls, [{path:"known.jpg",rating:5,orientation:"landscape"}], "PortalPhotos");
   assert.deepEqual(matched.map(item => item.url), [urls[0]]);
+});
+
+
+test("recognition text excludes Unknown and None but keeps multiple named people", () => {
+  assert.deepEqual(parseRecognisedPeople(" Person B, Unknown, Person A "), ["Person B", "Person A"]);
+  assert.deepEqual(parseRecognisedPeople("None"), []);
+  assert.deepEqual(parseRecognisedPeople("unavailable"), []);
+});
+
+test("named-person photographs are prioritised without changing rating eligibility", () => {
+  const pool = [
+    {url: "unrelated", weight: 5, orientation: "landscape", people: []},
+    {url: "samuel", weight: 1, orientation: "landscape", people: ["Person A"]},
+    {url: "excluded", weight: 0, orientation: "landscape", people: ["Person A"]}
+  ];
+  assert.equal(selectPhoto(pool, [], 0, () => 0, ["Person A"]), "samuel");
+  assert.equal(selectPhoto(pool, [], 0, () => 0, ["Not indexed"]), "unrelated");
+});
+
+test("portrait-landscape requirement still wins when a recognised photo is portrait", () => {
+  const pool = [
+    {url: "prior", weight: 1, orientation: "portrait", people: ["Person A"]},
+    {url: "another-portrait", weight: 1, orientation: "portrait", people: ["Person A"]},
+    {url: "landscape", weight: 1, orientation: "landscape", people: []}
+  ];
+  assert.equal(selectPhoto(pool, ["prior"], 0, () => 0, ["Person A"]), "landscape");
+});
+
+test("person metadata is passed through from indexed photographs", () => {
+  const urls = ["media-source://media_source/local/PortalPhotos/known.jpg"];
+  const matched = matchPhotoMetadata(urls, [
+    {path: "known.jpg", rating: 3, orientation: "landscape", people: ["Person A", "Person B"]}
+  ], "PortalPhotos");
+  assert.deepEqual(matched[0].people, ["Person A", "Person B"]);
 });

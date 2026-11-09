@@ -20,7 +20,7 @@ export function effectiveHistorySize(items, configuredSize = 5) {
 }
 
 /** Select a single image from the full pool on every transition. */
-export function selectPhoto(items, recent = [], historySize = 5, random = Math.random) {
+export function selectPhoto(items, recent = [], historySize = 5, random = Math.random, preferredNames = []) {
   const pool = items.filter(item => Number.isFinite(Number(item.weight)) && Number(item.weight) > 0);
   if (!pool.length) return null;
   const last = recent.at(-1);
@@ -35,6 +35,13 @@ export function selectPhoto(items, recent = [], historySize = 5, random = Math.r
     eligible = oriented.filter(item => !history.slice(n).includes(item.url));
   }
   if (!eligible.length) eligible = oriented;
+  // Prefer identified people after rating, orientation and recent-history exclusions.
+  // If no eligible matching photograph exists, retain the ordinary slideshow.
+  const preferred = new Set(preferredNames.map(name => String(name).trim().toLocaleLowerCase()).filter(Boolean));
+  if (preferred.size) {
+    const matches = eligible.filter(item => (item.people || []).some(name => preferred.has(String(name).trim().toLocaleLowerCase())));
+    if (matches.length) eligible = matches;
+  }
   const total = eligible.reduce((sum, item) => sum + Number(item.weight), 0);
   let ticket = Math.max(0, Math.min(1 - Number.EPSILON, random())) * total;
   for (const item of eligible) {
@@ -42,6 +49,15 @@ export function selectPhoto(items, recent = [], historySize = 5, random = Math.r
     if (ticket < 0) return item.url;
   }
   return eligible.at(-1).url;
+}
+
+/** Parse the optional Home Assistant recognised-people text helper. */
+export function parseRecognisedPeople(value) {
+  if (typeof value !== "string") return [];
+  const ignored = new Set(["none", "unknown", "unavailable", "null", "undefined"]);
+  const names = value.split(",").map(name => name.trim())
+    .filter(name => name && !ignored.has(name.toLowerCase()));
+  return [...new Set(names)];
 }
 
 export function filterPhotos(items, include = "", exclude = "") {
@@ -82,7 +98,7 @@ export function matchPhotoMetadata(urls, photos, mediaFolder = "PortalPhotos", r
     }
     const photo = metadata.get(relativePath);
     return photo
-      ? { url, weight: getRatingFrequency(photo.rating, ratingFrequencies), orientation: photo.orientation }
+      ? { url, weight: getRatingFrequency(photo.rating, ratingFrequencies), orientation: photo.orientation, people: Array.isArray(photo.people) ? photo.people : [] }
       : null;
   });
   return candidates.filter(Boolean);
