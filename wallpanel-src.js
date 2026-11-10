@@ -2588,7 +2588,8 @@ function initWallpanel() {
 				(typeof cameraRaw === "string" && cameraRaw.trim().toLowerCase() === "unknown" ? "Unknown" : "None");
 			const candidates = (this.photoSelectorCandidates || []).filter(item => Number(item.weight) > 0);
 			const activeUrl = this.getActiveMediaElement?.()?.mediaUrl;
-			const current = candidates.find(item => item.url === activeUrl);
+			const libraryPhotos = this.photoSelectorLibraryPhotos || [];
+			const current = libraryPhotos.find(item => item.url === activeUrl);
 			const currentPeople = current?.people || [];
 			const historySize = effectiveHistorySize(candidates, config.photo_selector_history_size ?? 5);
 			const recent = historySize ? (this.photoSelectorRecent || []).slice(-historySize) : [];
@@ -2604,7 +2605,7 @@ function initWallpanel() {
 			if (!eligible.length) eligible = oriented;
 			const totals = new Map();
 			const available = new Map();
-			for (const item of candidates) {
+			for (const item of libraryPhotos) {
 				for (const name of new Set(item.people || [])) {
 					totals.set(name, (totals.get(name) || 0) + 1);
 				}
@@ -2621,7 +2622,8 @@ function initWallpanel() {
 				"Persistence window (active): " + (persisted.length ? persisted.join(", ") : "None"),
 				"Current image: " + (activeUrl ? activeUrl.split("/").at(-1).split("?")[0] : "None"),
 				"People in image: " + (currentPeople.length ? currentPeople.join(", ") : "None / unindexed"),
-				"Library: " + candidates.length + " selectable photos; history " + recent.length + "/" + historySize,
+				"Library: " + libraryPhotos.length + " indexed / " + candidates.length + " selectable",
+				"History: " + recent.length + "/" + historySize,
 				"Next-photo pool: " + eligible.length + (landscapeOnly ? " (landscape only)" : ""),
 				...names.map(name => name + ": " + (totals.get(name) || 0) +
 					" total / " + (available.get(name) || 0) + " next eligible")
@@ -3448,10 +3450,12 @@ function initWallpanel() {
 
 		async applyPhotoSelectorOrder(urls) {
 			this.photoSelectorCandidates = null;
+			this.photoSelectorLibraryPhotos = [];
 			if (!config.photo_selector_enabled || !mediaSourceType().startsWith("media-source")) return urls;
 			try {
 				const result = await this.hass.callWS({ type: "wallpanel_photo_selector/photos" });
 				const matched = matchPhotoMetadata(urls, result.photos, result.media_folder, config.photo_selector_rating_frequencies);
+				this.photoSelectorLibraryPhotos = matched;
 				const candidates = filterPhotos(matched, config.photo_selector_filename_include, config.photo_selector_filename_exclude);
 				this.photoSelectorCandidates = candidates;
 				logger.debug("Photo Selector: indexed", { total: urls.length, matched: matched.length, filtered: candidates.length, eligible: candidates.filter(item => item.weight > 0).length });
