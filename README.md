@@ -164,6 +164,25 @@ wallpanel:
   photo_selector_person_entity: input_text.portal_recognised_people
 ```
 
+To show optional on-screen person-selection diagnostics, add:
+
+```yaml
+wallpanel:
+  photo_selector_debug_people: true
+  photo_selector_person_entity: input_text.portal_recognised_people
+  # Optional: raw camera recognition, BEFORE the persistence window is applied
+  # photo_selector_camera_person_entity: input_text.portal_camera_people
+```
+
+The overlay shows the current image and its tagged people, the raw camera result
+(or **Not configured** if no raw camera entity is supplied), and the names retained
+in the recognition persistence window. It shows per-person counts only for people
+in the current image, currently detected by the camera, or retained in that
+window. **Total** counts photos valid for selection (rating weight greater than
+zero and passing filename filters); **next eligible** additionally applies the
+current history and orientation restrictions. The persistence window duration is
+controlled by your recognition automation, not by WallPanel.
+
 An empty or omitted entity setting disables person preference. The Home Assistant
 helper can contain comma-separated names, `Unknown`, or `None`. On each photo
 transition, matching photographs are preferred among photos still eligible under
