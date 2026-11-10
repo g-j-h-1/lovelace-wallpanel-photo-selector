@@ -2621,7 +2621,7 @@ function initWallpanel() {
 				...names.map(name => name + ": " + (totals.get(name) || 0) +
 					" total / " + (available.get(name) || 0) + " next eligible")
 			];
-			this.peopleDebugOverlay.textContent = lines.join("\\n");
+			this.peopleDebugOverlay.textContent = lines.join("\n");
 		}
 
 		connectedCallback() {
