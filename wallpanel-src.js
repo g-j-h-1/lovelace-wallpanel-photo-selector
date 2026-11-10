@@ -2629,7 +2629,7 @@ function initWallpanel() {
 					available.set(name, (available.get(name) || 0) + 1);
 				}
 			}
-			const names = [...new Set([...currentPeople, ...cameraNames, ...persisted, ...configuredExclusions])]
+			const names = [...new Set([...currentPeople, ...cameraNames, ...persisted])]
 				.sort((a, b) => a.localeCompare(b));
 			const lines = [
 				"Camera (current): " + cameraLabel,
