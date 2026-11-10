@@ -79,7 +79,8 @@ const defaultConfig = {
 	photo_selector_enabled: false, // Use WallPanel Photo Selector metadata for local media sources
 	photo_selector_history_size: 5, // Number of recently displayed photos to avoid (0 disables)
 	photo_selector_person_entity: "", // Optional Home Assistant input_text entity with comma-separated recognised names
-	photo_selector_debug_people: false, // Subtle on-screen display of currently recognised people
+	photo_selector_debug_people: false, // Subtle on-screen display of photo and recognition diagnostics
+	photo_selector_camera_person_entity: "", // Optional raw camera recognition entity; distinct from persisted names
 	photo_selector_filename_include: "",
 	photo_selector_filename_exclude: "",
 	photo_selector_show_filename: false,
@@ -2579,9 +2580,12 @@ function initWallpanel() {
 			if (!enabled) return;
 
 			const raw = this.__hass?.states?.[config.photo_selector_person_entity]?.state;
-			const detected = parseRecognisedPeople(raw);
-			const cameraLabel = detected.length ? detected.join(", ") :
-				(typeof raw === "string" && raw.trim().toLowerCase() === "unknown" ? "Unknown" : "None");
+			const persisted = parseRecognisedPeople(raw);
+			const cameraEntity = config.photo_selector_camera_person_entity;
+			const cameraRaw = cameraEntity ? this.__hass?.states?.[cameraEntity]?.state : null;
+			const cameraNames = parseRecognisedPeople(cameraRaw);
+			const cameraLabel = !cameraEntity ? "Not configured" : cameraNames.length ? cameraNames.join(", ") :
+				(typeof cameraRaw === "string" && cameraRaw.trim().toLowerCase() === "unknown" ? "Unknown" : "None");
 			const candidates = (this.photoSelectorCandidates || []).filter(item => Number(item.weight) > 0);
 			const activeUrl = this.getActiveMediaElement?.()?.mediaUrl;
 			const current = candidates.find(item => item.url === activeUrl);
@@ -2610,10 +2614,11 @@ function initWallpanel() {
 					available.set(name, (available.get(name) || 0) + 1);
 				}
 			}
-			const names = [...new Set([...totals.keys(), ...detected, ...currentPeople])]
+			const names = [...new Set([...currentPeople, ...cameraNames, ...persisted])]
 				.sort((a, b) => a.localeCompare(b));
 			const lines = [
-				"Camera: " + cameraLabel,
+				"Camera (current): " + cameraLabel,
+				"Persistence window (active): " + (persisted.length ? persisted.join(", ") : "None"),
 				"Current image: " + (activeUrl ? activeUrl.split("/").at(-1).split("?")[0] : "None"),
 				"People in image: " + (currentPeople.length ? currentPeople.join(", ") : "None / unindexed"),
 				"Library: " + candidates.length + " selectable photos; history " + recent.length + "/" + historySize,
