@@ -2605,7 +2605,7 @@ function initWallpanel() {
 			if (!eligible.length) eligible = oriented;
 			const totals = new Map();
 			const available = new Map();
-			for (const item of libraryPhotos) {
+			for (const item of candidates) {
 				for (const name of new Set(item.people || [])) {
 					totals.set(name, (totals.get(name) || 0) + 1);
 				}
@@ -2622,7 +2622,7 @@ function initWallpanel() {
 				"Persistence window (active): " + (persisted.length ? persisted.join(", ") : "None"),
 				"Current image: " + (activeUrl ? activeUrl.split("/").at(-1).split("?")[0] : "None"),
 				"People in image: " + (currentPeople.length ? currentPeople.join(", ") : "None / unindexed"),
-				"Library: " + libraryPhotos.length + " indexed / " + candidates.length + " selectable",
+				"Library: " + candidates.length + " selectable photos",
 				"History: " + recent.length + "/" + historySize,
 				"Next-photo pool: " + eligible.length + (landscapeOnly ? " (landscape only)" : ""),
 				...names.map(name => name + ": " + (totals.get(name) || 0) +
