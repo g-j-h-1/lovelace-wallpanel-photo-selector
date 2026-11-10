@@ -195,7 +195,7 @@ normal preference logic. If every photo is excluded, selection returns no photo
 rather than displaying an excluded one. An empty or omitted list disables this rule.
 Configure both `photo_selector_camera_person_entity` and `photo_selector_person_entity` to cover immediate recognition and persistence.
 
-The overlay shows the current image and its tagged people, the raw camera result
+The overlay additionally shows configured exclusions, actively excluded names, the number of excluded photos, and whether the currently displayed photo has become excluded. Active excluded people are marked `[EXCLUDED]` in per-person counts. The overlay now uses a larger, brighter font and darker background for legibility.\n\nThe overlay shows the current image and its tagged people, the raw camera result
 (or **Not configured** if no raw camera entity is supplied), and the names retained
 in the recognition persistence window. It shows per-person counts only for people
 in the current image, currently detected by the camera, or retained in that
