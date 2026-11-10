@@ -4206,7 +4206,11 @@ function initWallpanel() {
 				const cameraNames = parseRecognisedPeople(
 					this.__hass?.states?.[config.photo_selector_camera_person_entity]?.state
 				);
-				const excludedNames = cameraNames.filter(name => excludedSet.has(name.toLocaleLowerCase()));
+				const persistedNames = parseRecognisedPeople(
+					this.__hass?.states?.[config.photo_selector_person_entity]?.state
+				);
+				const excludedNames = [...new Set([...cameraNames, ...persistedNames])]
+					.filter(name => excludedSet.has(name.toLocaleLowerCase()));
 				const selected = selectPhoto(this.photoSelectorCandidates, recent, historySize, Math.random, preferredNames, excludedNames);
 				if (updateIndex && selected) {
 					this.photoSelectorRecent = [...recent, selected].slice(-Math.max(1, historySize));
