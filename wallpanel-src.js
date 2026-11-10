@@ -2589,7 +2589,10 @@ function initWallpanel() {
 			const candidates = (this.photoSelectorCandidates || []).filter(item => Number(item.weight) > 0);
 			const activeUrl = this.getActiveMediaElement?.()?.mediaUrl;
 			const libraryPhotos = this.photoSelectorLibraryPhotos || [];
-			const current = libraryPhotos.find(item => item.url === activeUrl);
+			// Home Assistant resolves media-source URLs to signed HTTP URLs for display.
+			// Use the original selected media-list URL to look up photo metadata.
+			const selectedUrl = this.mediaList?.[this.mediaIndex];
+			const current = libraryPhotos.find(item => item.url === selectedUrl);
 			const currentPeople = current?.people || [];
 			const historySize = effectiveHistorySize(candidates, config.photo_selector_history_size ?? 5);
 			const recent = historySize ? (this.photoSelectorRecent || []).slice(-historySize) : [];
@@ -2620,7 +2623,7 @@ function initWallpanel() {
 			const lines = [
 				"Camera (current): " + cameraLabel,
 				"Persistence window (active): " + (persisted.length ? persisted.join(", ") : "None"),
-				"Current image: " + (activeUrl ? activeUrl.split("/").at(-1).split("?")[0] : "None"),
+				"Current image: " + (selectedUrl ? selectedUrl.split("/").at(-1).split("?")[0] : "None"),
 				"People in image: " + (currentPeople.length ? currentPeople.join(", ") : "None / unindexed"),
 				"Library: " + candidates.length + " selectable photos",
 				"History: " + recent.length + "/" + historySize,
