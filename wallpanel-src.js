@@ -2623,7 +2623,7 @@ function initWallpanel() {
 			const lines = [
 				"Camera (current): " + cameraLabel,
 				"Persistence window (active): " + (persisted.length ? persisted.join(", ") : "None"),
-				"Current image: " + (activeUrl ? activeUrl.split("/").at(-1).split("?")[0] : "None"),
+				"Current image: " + (selectedUrl ? selectedUrl.split("/").at(-1).split("?")[0] : "None"),
 				"People in image: " + (currentPeople.length ? currentPeople.join(", ") : "None / unindexed"),
 				"Library: " + candidates.length + " selectable photos",
 				"History: " + recent.length + "/" + historySize,
