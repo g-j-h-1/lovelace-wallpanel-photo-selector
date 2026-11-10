@@ -2802,12 +2802,13 @@ function initWallpanel() {
 			this.peopleDebugOverlay = document.createElement("div");
 			this.peopleDebugOverlay.id = "wallpanel-photo-selector-people-debug";
 			Object.assign(this.peopleDebugOverlay.style, {
-				position: "fixed", bottom: "10px", left: "10px",
-				zIndex: "2147483646", padding: "3px 7px",
-				background: "rgba(0,0,0,0.4)", color: "rgba(255,255,255,0.8)",
-				font: "11px monospace", borderRadius: "4px",
-				whiteSpace: "pre-line", maxHeight: "55vh", overflowY: "auto",
-				maxWidth: "75vw",
+				position: "fixed", bottom: "100px", left: "10px",
+				zIndex: "2147483646", padding: "8px 10px",
+				background: "rgba(0,0,0,0.78)", color: "#ffffff",
+				font: "600 16px/1.35 monospace", borderRadius: "5px",
+				textShadow: "0 1px 2px #000",
+				whiteSpace: "pre-line", maxHeight: "calc(100vh - 120px)", overflowY: "auto",
+				maxWidth: "85vw",
 				pointerEvents: "none", display: "none"
 			});
 			shadow.appendChild(this.peopleDebugOverlay);
