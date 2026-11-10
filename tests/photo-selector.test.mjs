@@ -100,3 +100,15 @@ test("person metadata is passed through from indexed photographs", () => {
   ], "PortalPhotos");
   assert.deepEqual(matched[0].people, ["Person A", "Person B"]);
 });
+
+test("group photos outrank photos containing just one recognised person", () => {
+  const pool = [
+    {url:"a", weight:5, orientation:"landscape", people:["Person A"]},
+    {url:"b", weight:5, orientation:"landscape", people:["Person B"]},
+    {url:"both", weight:1, orientation:"landscape", people:["Person A","Person B"]},
+    {url:"other", weight:5, orientation:"landscape", people:[]},
+  ];
+  assert.equal(selectPhoto(pool, [], 0, () => 0, ["Person A","Person B"]), "both");
+  assert.equal(selectPhoto(pool, [], 0, () => 0, ["Person A"]), "a");
+  assert.equal(selectPhoto(pool, ["both"], 0, () => 0, ["Person B"]), "b");
+});
