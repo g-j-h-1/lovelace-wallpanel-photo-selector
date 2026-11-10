@@ -20,8 +20,10 @@ export function effectiveHistorySize(items, configuredSize = 5) {
 }
 
 /** Select a single image from the full pool on every transition. */
-export function selectPhoto(items, recent = [], historySize = 5, random = Math.random, preferredNames = []) {
-  const pool = items.filter(item => Number.isFinite(Number(item.weight)) && Number(item.weight) > 0);
+export function selectPhoto(items, recent = [], historySize = 5, random = Math.random, preferredNames = [], excludedNames = []) {
+  const excluded = new Set(excludedNames.map(name => String(name).trim().toLocaleLowerCase()).filter(Boolean));
+  const pool = items.filter(item => Number.isFinite(Number(item.weight)) && Number(item.weight) > 0 &&
+    !(item.people || []).some(name => excluded.has(String(name).trim().toLocaleLowerCase())));
   if (!pool.length) return null;
   const last = recent.at(-1);
   const previous = pool.find(item => item.url === last);
