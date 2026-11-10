@@ -174,6 +174,27 @@ wallpanel:
   # photo_selector_camera_person_entity: input_text.portal_camera_people
 ```
 
+To exclude selected people **only while the camera currently recognises them**, add:
+
+```yaml
+wallpanel:
+  photo_selector_enabled: true
+  photo_selector_person_entity: input_text.portal_recognised_people
+  photo_selector_camera_person_entity: input_text.portal_camera_people
+  photo_selector_exclude_present_people:
+    - "Gareth Hill"
+    - "Lyndsey Hill"
+```
+
+Names are matched case-insensitively against the live camera helper and Immich photo tags.
+When a listed person is currently recognised, all photos tagged with that person
+(including group photos) are excluded from selection. Once they disappear from the
+live camera result, their photos become eligible again, regardless of the separate
+30-second persistence window. Other recognised people remain eligible for the
+normal preference logic. If every photo is excluded, selection returns no photo
+rather than displaying an excluded one. An empty or omitted list disables this rule.
+This feature requires `photo_selector_camera_person_entity` to be configured.
+
 The overlay shows the current image and its tagged people, the raw camera result
 (or **Not configured** if no raw camera entity is supplied), and the names retained
 in the recognition persistence window. It shows per-person counts only for people
