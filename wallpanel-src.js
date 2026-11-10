@@ -79,6 +79,8 @@ const defaultConfig = {
 	photo_selector_enabled: false, // Use WallPanel Photo Selector metadata for local media sources
 	photo_selector_history_size: 5, // Number of recently displayed photos to avoid (0 disables)
 	photo_selector_person_entity: "", // Optional Home Assistant input_text entity with comma-separated recognised names
+	photo_selector_debug_people: false, // Subtle on-screen display of photo and recognition diagnostics
+	photo_selector_camera_person_entity: "", // Optional raw camera recognition entity; distinct from persisted names
 	photo_selector_filename_include: "",
 	photo_selector_filename_exclude: "",
 	photo_selector_show_filename: false,
@@ -1559,6 +1561,7 @@ function initWallpanel() {
 		set hass(hass) {
 			logger.debug("Update hass");
 			this.__hass = hass;
+			this.updateRecognisedPeopleOverlay();
 			let changed = false;
 			for (const entityId in configEntityStates) {
 				const entity = this.__hass.states[entityId];
@@ -1747,6 +1750,7 @@ function initWallpanel() {
 					this.stopScreensaver(config.fade_out_time_browser_mod_popup);
 				} else {
 					this.updateScreensaver();
+					this.updateRecognisedPeopleOverlay();
 				}
 			} else if (isActive()) {
 				if (config.idle_time > 0 && Date.now() - this.idleSince >= config.idle_time * 1000) {
@@ -2569,6 +2573,64 @@ function initWallpanel() {
 			cont.style.backgroundImage = srcMediaUrl ? `url('${srcMediaUrl.replace(/'/g, "%27")}')` : "";
 		}
 
+		updateRecognisedPeopleOverlay() {
+			if (!this.peopleDebugOverlay) return;
+			const enabled = config.photo_selector_debug_people === true;
+			this.peopleDebugOverlay.style.display = enabled ? "block" : "none";
+			if (!enabled) return;
+
+			const raw = this.__hass?.states?.[config.photo_selector_person_entity]?.state;
+			const persisted = parseRecognisedPeople(raw);
+			const cameraEntity = config.photo_selector_camera_person_entity;
+			const cameraRaw = cameraEntity ? this.__hass?.states?.[cameraEntity]?.state : null;
+			const cameraNames = parseRecognisedPeople(cameraRaw);
+			const cameraLabel = !cameraEntity ? "Not configured" : cameraNames.length ? cameraNames.join(", ") :
+				(typeof cameraRaw === "string" && cameraRaw.trim().toLowerCase() === "unknown" ? "Unknown" : "None");
+			const candidates = (this.photoSelectorCandidates || []).filter(item => Number(item.weight) > 0);
+			const activeUrl = this.getActiveMediaElement?.()?.mediaUrl;
+			const libraryPhotos = this.photoSelectorLibraryPhotos || [];
+			const current = libraryPhotos.find(item => item.url === activeUrl);
+			const currentPeople = current?.people || [];
+			const historySize = effectiveHistorySize(candidates, config.photo_selector_history_size ?? 5);
+			const recent = historySize ? (this.photoSelectorRecent || []).slice(-historySize) : [];
+			const last = recent.at(-1);
+			const previous = candidates.find(item => item.url === last);
+			const landscapeOnly = previous?.orientation === "portrait" &&
+				candidates.some(item => item.orientation === "landscape");
+			const oriented = landscapeOnly ? candidates.filter(item => item.orientation === "landscape") : candidates;
+			let eligible = oriented.filter(item => !recent.includes(item.url));
+			for (let n = 1; !eligible.length && n <= recent.length; n++) {
+				eligible = oriented.filter(item => !recent.slice(n).includes(item.url));
+			}
+			if (!eligible.length) eligible = oriented;
+			const totals = new Map();
+			const available = new Map();
+			for (const item of candidates) {
+				for (const name of new Set(item.people || [])) {
+					totals.set(name, (totals.get(name) || 0) + 1);
+				}
+			}
+			for (const item of eligible) {
+				for (const name of new Set(item.people || [])) {
+					available.set(name, (available.get(name) || 0) + 1);
+				}
+			}
+			const names = [...new Set([...currentPeople, ...cameraNames, ...persisted])]
+				.sort((a, b) => a.localeCompare(b));
+			const lines = [
+				"Camera (current): " + cameraLabel,
+				"Persistence window (active): " + (persisted.length ? persisted.join(", ") : "None"),
+				"Current image: " + (activeUrl ? activeUrl.split("/").at(-1).split("?")[0] : "None"),
+				"People in image: " + (currentPeople.length ? currentPeople.join(", ") : "None / unindexed"),
+				"Library: " + candidates.length + " selectable photos",
+				"History: " + recent.length + "/" + historySize,
+				"Next-photo pool: " + eligible.length + (landscapeOnly ? " (landscape only)" : ""),
+				...names.map(name => name + ": " + (totals.get(name) || 0) +
+					" total / " + (available.get(name) || 0) + " next eligible")
+			];
+			this.peopleDebugOverlay.textContent = lines.join("\n");
+		}
+
 		connectedCallback() {
 			this.style.zIndex = config.z_index;
 			this.style.visibility = "hidden";
@@ -2718,6 +2780,19 @@ function initWallpanel() {
 			const shadow = this.attachShadow({ mode: "open" });
 			shadow.appendChild(this.shadowStyle);
 			shadow.appendChild(this.screensaverContainer);
+			this.peopleDebugOverlay = document.createElement("div");
+			this.peopleDebugOverlay.id = "wallpanel-photo-selector-people-debug";
+			Object.assign(this.peopleDebugOverlay.style, {
+				position: "fixed", bottom: "10px", left: "10px",
+				zIndex: "2147483646", padding: "3px 7px",
+				background: "rgba(0,0,0,0.4)", color: "rgba(255,255,255,0.8)",
+				font: "11px monospace", borderRadius: "4px",
+				whiteSpace: "pre-line", maxHeight: "55vh", overflowY: "auto",
+				maxWidth: "75vw",
+				pointerEvents: "none", display: "none"
+			});
+			shadow.appendChild(this.peopleDebugOverlay);
+			this.updateRecognisedPeopleOverlay();
 			shadow.appendChild(this.debugBox);
 
 			const wp = this;
@@ -3375,10 +3450,12 @@ function initWallpanel() {
 
 		async applyPhotoSelectorOrder(urls) {
 			this.photoSelectorCandidates = null;
+			this.photoSelectorLibraryPhotos = [];
 			if (!config.photo_selector_enabled || !mediaSourceType().startsWith("media-source")) return urls;
 			try {
 				const result = await this.hass.callWS({ type: "wallpanel_photo_selector/photos" });
 				const matched = matchPhotoMetadata(urls, result.photos, result.media_folder, config.photo_selector_rating_frequencies);
+				this.photoSelectorLibraryPhotos = matched;
 				const candidates = filterPhotos(matched, config.photo_selector_filename_include, config.photo_selector_filename_exclude);
 				this.photoSelectorCandidates = candidates;
 				logger.debug("Photo Selector: indexed", { total: urls.length, matched: matched.length, filtered: candidates.length, eligible: candidates.filter(item => item.weight > 0).length });
