@@ -79,6 +79,7 @@ const defaultConfig = {
 	photo_selector_enabled: false, // Use WallPanel Photo Selector metadata for local media sources
 	photo_selector_history_size: 5, // Number of recently displayed photos to avoid (0 disables)
 	photo_selector_person_entity: "", // Optional Home Assistant input_text entity with comma-separated recognised names
+	photo_selector_debug_people: false, // Subtle on-screen display of currently recognised people
 	photo_selector_filename_include: "",
 	photo_selector_filename_exclude: "",
 	photo_selector_show_filename: false,
@@ -1559,6 +1560,7 @@ function initWallpanel() {
 		set hass(hass) {
 			logger.debug("Update hass");
 			this.__hass = hass;
+			this.updateRecognisedPeopleOverlay();
 			let changed = false;
 			for (const entityId in configEntityStates) {
 				const entity = this.__hass.states[entityId];
@@ -2569,6 +2571,15 @@ function initWallpanel() {
 			cont.style.backgroundImage = srcMediaUrl ? `url('${srcMediaUrl.replace(/'/g, "%27")}')` : "";
 		}
 
+		updateRecognisedPeopleOverlay() {
+			if (!this.peopleDebugOverlay) return;
+			const enabled = config.photo_selector_debug_people === true && Boolean(config.photo_selector_person_entity);
+			this.peopleDebugOverlay.style.display = enabled ? "block" : "none";
+			if (!enabled) return;
+			const names = parseRecognisedPeople(this.__hass?.states?.[config.photo_selector_person_entity]?.state);
+			this.peopleDebugOverlay.textContent = names.length ? names.join(", ") : "None";
+		}
+
 		connectedCallback() {
 			this.style.zIndex = config.z_index;
 			this.style.visibility = "hidden";
@@ -2718,6 +2729,17 @@ function initWallpanel() {
 			const shadow = this.attachShadow({ mode: "open" });
 			shadow.appendChild(this.shadowStyle);
 			shadow.appendChild(this.screensaverContainer);
+			this.peopleDebugOverlay = document.createElement("div");
+			this.peopleDebugOverlay.id = "wallpanel-photo-selector-people-debug";
+			Object.assign(this.peopleDebugOverlay.style, {
+				position: "fixed", bottom: "10px", left: "10px",
+				zIndex: "2147483646", padding: "3px 7px",
+				background: "rgba(0,0,0,0.4)", color: "rgba(255,255,255,0.8)",
+				font: "12px sans-serif", borderRadius: "4px",
+				pointerEvents: "none", display: "none"
+			});
+			shadow.appendChild(this.peopleDebugOverlay);
+			this.updateRecognisedPeopleOverlay();
 			shadow.appendChild(this.debugBox);
 
 			const wp = this;
