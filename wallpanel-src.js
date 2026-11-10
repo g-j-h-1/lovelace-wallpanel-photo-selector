@@ -81,6 +81,7 @@ const defaultConfig = {
 	photo_selector_person_entity: "", // Optional Home Assistant input_text entity with comma-separated recognised names
 	photo_selector_debug_people: false, // Subtle on-screen display of photo and recognition diagnostics
 	photo_selector_camera_person_entity: "", // Optional raw camera recognition entity; distinct from persisted names
+	photo_selector_exclude_present_people: [], // Names whose photos are excluded only while currently recognised by the camera
 	photo_selector_filename_include: "",
 	photo_selector_filename_exclude: "",
 	photo_selector_show_filename: false,
@@ -4198,7 +4199,15 @@ function initWallpanel() {
 				const preferredNames = parseRecognisedPeople(
 					this.__hass?.states?.[config.photo_selector_person_entity]?.state
 				);
-				const selected = selectPhoto(this.photoSelectorCandidates, recent, historySize, Math.random, preferredNames);
+				const configuredExclusions = Array.isArray(config.photo_selector_exclude_present_people)
+					? config.photo_selector_exclude_present_people : [];
+				const excludedSet = new Set(configuredExclusions
+					.map(name => String(name).trim().toLocaleLowerCase()).filter(Boolean));
+				const cameraNames = parseRecognisedPeople(
+					this.__hass?.states?.[config.photo_selector_camera_person_entity]?.state
+				);
+				const excludedNames = cameraNames.filter(name => excludedSet.has(name.toLocaleLowerCase()));
+				const selected = selectPhoto(this.photoSelectorCandidates, recent, historySize, Math.random, preferredNames, excludedNames);
 				if (updateIndex && selected) {
 					this.photoSelectorRecent = [...recent, selected].slice(-Math.max(1, historySize));
 					this.mediaIndex = this.mediaList.indexOf(selected);
