@@ -81,6 +81,7 @@ const defaultConfig = {
 	photo_selector_person_entity: "", // Optional Home Assistant input_text entity with comma-separated recognised names
 	photo_selector_debug_people: false, // Subtle on-screen display of photo and recognition diagnostics
 	photo_selector_camera_person_entity: "", // Optional raw camera recognition entity; distinct from persisted names
+	photo_selector_exclude_present_people: [], // Names whose photos are excluded only while currently recognised by the camera
 	photo_selector_filename_include: "",
 	photo_selector_filename_exclude: "",
 	photo_selector_show_filename: false,
@@ -2586,7 +2587,16 @@ function initWallpanel() {
 			const cameraNames = parseRecognisedPeople(cameraRaw);
 			const cameraLabel = !cameraEntity ? "Not configured" : cameraNames.length ? cameraNames.join(", ") :
 				(typeof cameraRaw === "string" && cameraRaw.trim().toLowerCase() === "unknown" ? "Unknown" : "None");
-			const candidates = (this.photoSelectorCandidates || []).filter(item => Number(item.weight) > 0);
+			const configuredExclusions = Array.isArray(config.photo_selector_exclude_present_people)
+				? config.photo_selector_exclude_present_people : [];
+			const configuredSet = new Set(configuredExclusions.map(name => String(name).trim().toLocaleLowerCase()).filter(Boolean));
+			const activeExclusions = [...new Set([...cameraNames, ...persisted])]
+				.filter(name => configuredSet.has(name.toLocaleLowerCase()));
+			const excludedSet = new Set(activeExclusions.map(name => name.toLocaleLowerCase()));
+			const isExcluded = item => (item.people || []).some(name =>
+				excludedSet.has(String(name).trim().toLocaleLowerCase()));
+			const allCandidates = (this.photoSelectorCandidates || []).filter(item => Number(item.weight) > 0);
+			const candidates = allCandidates.filter(item => !isExcluded(item));
 			const activeUrl = this.getActiveMediaElement?.()?.mediaUrl;
 			const libraryPhotos = this.photoSelectorLibraryPhotos || [];
 			// Home Assistant resolves media-source URLs to signed HTTP URLs for display.
@@ -2594,6 +2604,7 @@ function initWallpanel() {
 			const selectedUrl = this.mediaList?.[this.mediaIndex];
 			const current = libraryPhotos.find(item => item.url === selectedUrl);
 			const currentPeople = current?.people || [];
+			const currentExcluded = !!current && isExcluded(current);
 			const historySize = effectiveHistorySize(candidates, config.photo_selector_history_size ?? 5);
 			const recent = historySize ? (this.photoSelectorRecent || []).slice(-historySize) : [];
 			const last = recent.at(-1);
@@ -2618,18 +2629,23 @@ function initWallpanel() {
 					available.set(name, (available.get(name) || 0) + 1);
 				}
 			}
-			const names = [...new Set([...currentPeople, ...cameraNames, ...persisted])]
+			const names = [...new Set([...currentPeople, ...cameraNames, ...persisted, ...configuredExclusions])]
 				.sort((a, b) => a.localeCompare(b));
 			const lines = [
 				"Camera (current): " + cameraLabel,
 				"Persistence window (active): " + (persisted.length ? persisted.join(", ") : "None"),
+				"Configured exclusions: " + (configuredExclusions.length ? configuredExclusions.join(", ") : "None"),
+				"Excluded now (camera + persistence): " + (activeExclusions.length ? activeExclusions.join(", ") : "None"),
+				"Photos excluded now: " + (allCandidates.length - candidates.length),
+				"Current image excluded: " + (currentExcluded ? "Yes (selected before exclusion)" : "No"),
 				"Current image: " + (selectedUrl ? selectedUrl.split("/").at(-1).split("?")[0] : "None"),
 				"People in image: " + (currentPeople.length ? currentPeople.join(", ") : "None / unindexed"),
 				"Library: " + candidates.length + " selectable photos",
 				"History: " + recent.length + "/" + historySize,
 				"Next-photo pool: " + eligible.length + (landscapeOnly ? " (landscape only)" : ""),
 				...names.map(name => name + ": " + (totals.get(name) || 0) +
-					" total / " + (available.get(name) || 0) + " next eligible")
+					" total / " + (available.get(name) || 0) + " next eligible" +
+					(excludedSet.has(name.toLocaleLowerCase()) ? " [EXCLUDED]" : ""))
 			];
 			this.peopleDebugOverlay.textContent = lines.join("\n");
 		}
@@ -4198,7 +4214,19 @@ function initWallpanel() {
 				const preferredNames = parseRecognisedPeople(
 					this.__hass?.states?.[config.photo_selector_person_entity]?.state
 				);
-				const selected = selectPhoto(this.photoSelectorCandidates, recent, historySize, Math.random, preferredNames);
+				const configuredExclusions = Array.isArray(config.photo_selector_exclude_present_people)
+					? config.photo_selector_exclude_present_people : [];
+				const excludedSet = new Set(configuredExclusions
+					.map(name => String(name).trim().toLocaleLowerCase()).filter(Boolean));
+				const cameraNames = parseRecognisedPeople(
+					this.__hass?.states?.[config.photo_selector_camera_person_entity]?.state
+				);
+				const persistedNames = parseRecognisedPeople(
+					this.__hass?.states?.[config.photo_selector_person_entity]?.state
+				);
+				const excludedNames = [...new Set([...cameraNames, ...persistedNames])]
+					.filter(name => excludedSet.has(name.toLocaleLowerCase()));
+				const selected = selectPhoto(this.photoSelectorCandidates, recent, historySize, Math.random, preferredNames, excludedNames);
 				if (updateIndex && selected) {
 					this.photoSelectorRecent = [...recent, selected].slice(-Math.max(1, historySize));
 					this.mediaIndex = this.mediaList.indexOf(selected);
