@@ -2344,6 +2344,23 @@ function initWallpanel() {
 			setTimeout(this.updateShadowStyle.bind(this), 500);
 		}
 
+		updateFilenameOverlay(mediaElement, container) {
+			// Runs on every media switch so the overlay works for all photo
+			// sources, not only media-entity videos.
+			const overlay = container === this.imageOneContainer ? this.imageOneFilename : container === this.imageTwoContainer ? this.imageTwoFilename : null;
+			if (!overlay) return;
+			const url = mediaElement && mediaElement.mediaUrl;
+			const show = Boolean(config.photo_selector_show_filename && config.photo_selector_enabled && url);
+			overlay.style.display = show ? "block" : "none";
+			if (!show) return;
+			const raw = String(url).split("?")[0].split("/").at(-1);
+			try {
+				overlay.textContent = decodeURIComponent(raw);
+			} catch (_error) {
+				overlay.textContent = raw;
+			}
+		}
+
 		updateOrientationCardVisibility(mediaElement) {
 			const width = mediaElement.naturalWidth || mediaElement.videoWidth || 0;
 			const height = mediaElement.naturalHeight || mediaElement.videoHeight || 0;
@@ -3481,8 +3498,11 @@ function initWallpanel() {
 				logger.debug("Photo Selector: indexed", { total: urls.length, matched: matched.length, filtered: candidates.length, eligible: candidates.filter(item => item.weight > 0).length });
 				return candidates.map(item => item.url);
 			} catch (error) {
-				logger.warn("Photo Selector unavailable or invalid filename filter", error);
-				return [];
+				// Degrade to a plain shuffle rather than an empty slideshow.
+				logger.warn("Photo Selector unavailable or invalid filename filter; falling back to random order", error);
+				this.photoSelectorCandidates = null;
+				this.photoSelectorLibraryPhotos = [];
+				return shuffleArray(urls.slice());
 			}
 		}
 
@@ -4320,16 +4340,6 @@ function initWallpanel() {
 			}
 
 			if (mediaType == "video") {
-				const filenameOverlay = element === this.imageOne ? this.imageOneFilename : element === this.imageTwo ? this.imageTwoFilename : null;
-				if (filenameOverlay) {
-					const show = config.photo_selector_show_filename && config.photo_selector_enabled;
-					filenameOverlay.style.display = show ? "block" : "none";
-					if (show) {
-						const raw = element.mediaUrl.split("/").at(-1).split("?")[0];
-						try { filenameOverlay.textContent = decodeURIComponent(raw); }
-						catch (_error) { filenameOverlay.textContent = raw; }
-					}
-				}
 				element.infoCacheUrl = element.mediaUrl;
 				attributesToMediaInfoCache();
 				element = this.replaceMediaElement(element, "ha-camera-stream");
@@ -4786,6 +4796,7 @@ function initWallpanel() {
 			this.setMediaDataInfo();
 			this.setMediaDimensions();
 			this.updateOrientationCardVisibility(newMedia);
+			this.updateFilenameOverlay(newMedia, newActiveContainer);
 			this.setImageURLEntityState();
 			this.startPlayingActiveMedia();
 			this.restartProgressBarAnimation();

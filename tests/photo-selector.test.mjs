@@ -152,3 +152,20 @@ test("history stays strict until a photo is evicted", () => {
   assert.equal(selectPhoto(pool,next,50,()=>0,["Me"]),"0");
   assert.notEqual(selectPhoto(pool,history,50,()=>0,["Me"]),"0");
 });
+
+test("matches photos in a nested media folder", () => {
+  const urls = [
+    "media-source://media_source/local/Family/Portal/album/a.jpg",
+    "media-source://media_source/local/Family/Other/b.jpg",
+  ];
+  const photos = [{path: "album/a.jpg", rating: 3, orientation: "landscape"}, {path: "b.jpg", rating: 3, orientation: "landscape"}];
+  assert.deepEqual(matchPhotoMetadata(urls, photos, "Family/Portal").map(item => item.url), [urls[0]]);
+  assert.deepEqual(matchPhotoMetadata(urls, photos, "/Family/Portal/").map(item => item.url), [urls[0]]);
+});
+
+test("empty or '.' media folder means the /media root", () => {
+  const urls = ["media-source://media_source/local/album/a.jpg"];
+  const photos = [{path: "album/a.jpg", rating: 2, orientation: "portrait"}];
+  assert.equal(matchPhotoMetadata(urls, photos, "").length, 1);
+  assert.equal(matchPhotoMetadata(urls, photos, ".").length, 1);
+});

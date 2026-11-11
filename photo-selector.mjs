@@ -109,7 +109,9 @@ export function filterPhotos(items, include = "", exclude = "") {
  */
 export function matchPhotoMetadata(urls, photos, mediaFolder = "PortalPhotos", ratingFrequencies = {}) {
   const metadata = new Map((photos || []).map((photo) => [photo.path, photo]));
-  const folderPrefix = mediaFolder ? `${mediaFolder}/` : "";
+  // mediaFolder is relative to /media and may be nested ("Family/Portal").
+  const folder = String(mediaFolder ?? "").replace(/^\/+|\/+$/g, "");
+  const folderPrefix = folder && folder !== "." ? `${folder}/` : "";
   const candidates = urls.map((url) => {
     const marker = "/local/";
     const position = url.indexOf(marker);
