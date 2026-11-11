@@ -17,7 +17,7 @@ test("weighted choice runs independently on each selection", () => {
 });
 test("recent photos are excluded within the effective history cap", () => {
   const pool = Array.from({length: 8}, (_, i) => ({url: String(i), orientation: "landscape", weight: 1}));
-  assert.equal(selectPhoto(pool, ["0", "1"], 2, () => 0), "0");
+  assert.equal(selectPhoto(pool, ["0", "1"], 2, () => 0), "2");
   assert.notEqual(selectPhoto(pool, ["0", "1"], 2, () => 0), "1");
   // A two-image library has a zero-length exclusion window.
   assert.equal(selectPhoto(pool.slice(0, 2), ["0", "1"], 2, () => 0), "0");
@@ -125,7 +125,7 @@ test("weighted eviction only removes an entry from oldest half", () => {
     assert.equal(history.slice(25).every(url=>next.includes(url)), true);
   }
   assert.equal(appendWeightedHistory(history, "new", 50, ()=>0).includes("0"), false);
-  assert.equal(appendWeightedHistory(history, "new", 50, ()=>0.99).includes("24"), false);
+  assert.equal(appendWeightedHistory(history, "new", 50, ()=>0.999999).includes("24"), false);
 });
 test("history stays strict until a photo is evicted", () => {
   const pool = Array.from({length: 200},(_,i)=>({url:String(i),weight:1,orientation:"landscape",people:i<5?["Me"]:[]}));
