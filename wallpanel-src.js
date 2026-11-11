@@ -1,4 +1,4 @@
-import { matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize, parseRecognisedPeople } from "./photo-selector.mjs";
+import { matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize, parseRecognisedPeople, appendWeightedHistory } from "./photo-selector.mjs";
 
 /**
  * (C) 2020-2026 by Jan Schneider (oss@janschneider.net)
@@ -4229,7 +4229,7 @@ function initWallpanel() {
 					.filter(name => excludedSet.has(name.toLocaleLowerCase()));
 				const selected = selectPhoto(this.photoSelectorCandidates, recent, historySize, Math.random, preferredNames, excludedNames);
 				if (updateIndex && selected) {
-					this.photoSelectorRecent = [...recent, selected].slice(-Math.max(1, historySize));
+					this.photoSelectorRecent = appendWeightedHistory(recent, selected, historySize, Math.random);
 					this.mediaIndex = this.mediaList.indexOf(selected);
 				}
 				return selected;
@@ -4262,8 +4262,7 @@ function initWallpanel() {
 						this.photoSelectorCandidates || [],
 						config.photo_selector_history_size ?? 5
 					);
-					this.photoSelectorRecent = [...(this.photoSelectorRecent || []), this.mediaList[mediaIndex]]
-						.slice(-Math.max(1, historySize));
+					this.photoSelectorRecent = appendWeightedHistory(this.photoSelectorRecent || [], this.mediaList[mediaIndex], historySize, Math.random);
 				}
 			}
 			return this.mediaList[mediaIndex];
