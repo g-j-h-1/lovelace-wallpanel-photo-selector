@@ -12,10 +12,11 @@ export function getRatingFrequency(rating, frequencies = {}) {
   return Number.isFinite(configured) ? Math.max(0, configured) : DEFAULT_RATING_FREQUENCIES[key];
 }
 
-/** Respect the configured history capacity; do not shrink it based on the photo pool. */
+/** Cap requested history to 25% of selectable photographs. */
 export function effectiveHistorySize(items, configuredSize = 5) {
+  const eligibleCount = items.filter(item => Number.isFinite(Number(item.weight)) && Number(item.weight) > 0).length;
   const requested = Math.max(0, Math.floor(Number(configuredSize) || 0));
-  return requested;
+  return Math.min(requested, Math.floor(eligibleCount / 4));
 }
 
 /** Append a photo, evicting a weighted-random member of the oldest half at capacity. */
