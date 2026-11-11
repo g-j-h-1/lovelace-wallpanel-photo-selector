@@ -17,7 +17,8 @@ test("weighted choice runs independently on each selection", () => {
 });
 test("recent photos are excluded within the effective history cap", () => {
   const pool = Array.from({length: 8}, (_, i) => ({url: String(i), orientation: "landscape", weight: 1}));
-  assert.equal(selectPhoto(pool, ["0", "1"], 2, () => 0), "2");
+  assert.equal(selectPhoto(pool, ["0", "1"], 2, () => 0), "0");
+  assert.notEqual(selectPhoto(pool, ["0", "1"], 2, () => 0), "1");
   // A two-image library has a zero-length exclusion window.
   assert.equal(selectPhoto(pool.slice(0, 2), ["0", "1"], 2, () => 0), "0");
 });
