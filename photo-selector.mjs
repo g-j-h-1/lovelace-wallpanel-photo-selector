@@ -68,7 +68,10 @@ export function selectPhoto(items, recent = [], historySize = 5, random = Math.r
     if (index !== undefined && index >= olderCount) return null;
     // Entries outside history have full weight. In the older half, the oldest
     // gets full weight and the youngest gets 1/olderCount of its normal weight.
-    const ageFactor = index === undefined ? 1 : (olderCount - index) / olderCount;
+    const ageFactor = index === undefined ? 1 : (olderCount - index) / (olderCount + 1);
+    // Probabilistic admission prevents the first recognised photo reaching
+    // the older half from being selected deterministically every cycle.
+    if (index !== undefined && random() >= ageFactor) return null;
     return { ...item, weight: Number(item.weight) * ageFactor };
   }).filter(Boolean);
   if (!candidates.length) return null;
