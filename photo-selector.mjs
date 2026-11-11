@@ -19,6 +19,27 @@ export function effectiveHistorySize(items, configuredSize = 5) {
   return Math.min(requested, Math.floor(eligibleCount / 4));
 }
 
+/**
+ * Apply weighted random early drop (WRED) to recent-history exclusions.
+ * The newest half remains protected. Photos in the oldest half become
+ * increasingly eligible with age (linear probability from 0 to 1).
+ * The final displayed image is always protected when history is enabled.
+ */
+export function wredHistoryEligibility(items, recent = [], historySize = 5, random = Math.random) {
+  const history = recent.slice(-Math.max(0, Math.floor(Number(historySize) || 0)));
+  if (!history.length) return items;
+  const protectedCount = Math.ceil(history.length / 2);
+  const oldestCount = history.length - protectedCount;
+  const latestIndex = new Map(history.map((url, index) => [url, index]));
+  return items.filter(item => {
+    const index = latestIndex.get(item.url);
+    if (index === undefined) return true;
+    if (index >= oldestCount) return false;
+    // Oldest entry is fully eligible; more recent entries progressively less so.
+    return random() < (oldestCount - index) / oldestCount;
+  });
+}
+
 /** Select a single image from the full pool on every transition. */
 export function selectPhoto(items, recent = [], historySize = 5, random = Math.random, preferredNames = [], excludedNames = []) {
   const excluded = new Set(excludedNames.map(name => String(name).trim().toLocaleLowerCase()).filter(Boolean));
@@ -31,23 +52,29 @@ export function selectPhoto(items, recent = [], historySize = 5, random = Math.r
   const oriented = requireLandscape ? pool.filter(item => item.orientation === "landscape") : pool;
   const cappedHistorySize = effectiveHistorySize(pool, historySize);
   const history = cappedHistorySize > 0 ? recent.slice(-cappedHistorySize) : [];
-  let eligible = oriented.filter(item => !history.includes(item.url));
-  // For small collections relax the oldest exclusions, never rating-zero exclusions.
-  for (let n = 1; !eligible.length && n <= history.length; n++) {
-    eligible = oriented.filter(item => !history.slice(n).includes(item.url));
-  }
-  if (!eligible.length) eligible = oriented;
-  // Prefer identified people after rating, orientation and recent-history exclusions.
-  // If no eligible matching photograph exists, retain the ordinary slideshow.
   const preferred = new Set(preferredNames.map(name => String(name).trim().toLocaleLowerCase()).filter(Boolean));
-  if (preferred.size) {
-    // Prefer the photograph containing the greatest number of currently
-    // recognised people, rather than treating any single match equally.
-    const matchCount = item => new Set((item.people || [])
-      .map(name => String(name).trim().toLocaleLowerCase())
-      .filter(name => preferred.has(name))).size;
-    const bestCount = Math.max(0, ...eligible.map(matchCount));
-    if (bestCount > 0) eligible = eligible.filter(item => matchCount(item) === bestCount);
+  const matchCount = item => new Set((item.people || [])
+    .map(name => String(name).trim().toLocaleLowerCase())
+    .filter(name => preferred.has(name))).size;
+
+  // Honour person matching before relaxing history. Otherwise an unrelated,
+  // never-seen photograph can repeatedly beat a photograph of the present person.
+  const bestCount = preferred.size ? Math.max(0, ...oriented.map(matchCount)) : 0;
+  const preferredPool = bestCount > 0 ? oriented.filter(item => matchCount(item) === bestCount) : oriented;
+
+  // Try normal strict exclusion first, then admit older recent photos using WRED
+  // whenever the preferred pool is exhausted. Retain hard protection of the
+  // most recent image except when only that one image can possibly be shown.
+  let eligible = preferredPool.filter(item => !history.includes(item.url));
+  if (!eligible.length) eligible = wredHistoryEligibility(preferredPool, history, history.length, random);
+  if (!eligible.length) {
+    // Fallback for a tiny pool: admit the oldest available image first.
+    // If there are multiple options, avoid immediately repeating the last one.
+    const distinct = preferredPool.filter(item => item.url !== last);
+    const fallback = distinct.length ? distinct : preferredPool;
+    const mostRecent = new Map(history.map((url, index) => [url, index]));
+    const oldestIndex = Math.min(...fallback.map(item => mostRecent.get(item.url) ?? -1));
+    eligible = fallback.filter(item => (mostRecent.get(item.url) ?? -1) === oldestIndex);
   }
   const total = eligible.reduce((sum, item) => sum + Number(item.weight), 0);
   let ticket = Math.max(0, Math.min(1 - Number.EPSILON, random())) * total;

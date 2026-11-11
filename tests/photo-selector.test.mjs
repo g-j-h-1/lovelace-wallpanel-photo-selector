@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getRatingFrequency, matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize, parseRecognisedPeople } from "../photo-selector.mjs";
+import { getRatingFrequency, matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize, wredHistoryEligibility, parseRecognisedPeople } from "../photo-selector.mjs";
 
 const photos = [
   { url: "p", orientation: "portrait", weight: 1 },
@@ -111,4 +111,30 @@ test("group photos outrank photos containing just one recognised person", () => 
   assert.equal(selectPhoto(pool, [], 0, () => 0, ["Person A","Person B"]), "both");
   assert.equal(selectPhoto(pool, [], 0, () => 0, ["Person A"]), "a");
   assert.equal(selectPhoto(pool, ["both"], 0, () => 0, ["Person B"]), "b");
+});
+
+test("WRED protects newest half and progressively admits older history", () => {
+  const pool = Array.from({length: 8}, (_, i) => ({url: String(i), weight: 1}));
+  const history = ["0", "1", "2", "3", "4", "5"];
+  assert.deepEqual(wredHistoryEligibility(pool, history, 6, () => 0).map(x => x.url), ["0", "1", "2", "6", "7"]);
+  assert.deepEqual(wredHistoryEligibility(pool, history, 6, () => 0.99).map(x => x.url), ["0", "6", "7"]);
+});
+test("recognised person keeps priority when all their photos are in history", () => {
+  const pool = [
+    {url:"a", weight:1, orientation:"landscape", people:["A"]},
+    {url:"b", weight:1, orientation:"landscape", people:["A"]},
+    {url:"c", weight:1, orientation:"landscape", people:["A"]},
+    {url:"unrelated", weight:1, orientation:"landscape", people:[]},
+    ...Array.from({length: 20}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
+  ];
+  const history = ["a","b","c"];
+  assert.equal(selectPhoto(pool, history, 12, () => 0, ["A"]), "a");
+  assert.notEqual(selectPhoto(pool, ["a","b","c"], 12, () => 0.99, ["A"]), "c");
+});
+test("single recognised photo may repeat only when no alternative matches", () => {
+  const pool = [
+    {url:"a",weight:1,orientation:"landscape",people:["A"]},
+    ...Array.from({length: 12}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
+  ];
+  assert.equal(selectPhoto(pool, ["a"], 8, () => 0.99, ["A"]), "a");
 });

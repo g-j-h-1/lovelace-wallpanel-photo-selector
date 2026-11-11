@@ -98,7 +98,7 @@ Hidden cards take up no layout space. Unknown dimensions match only `unknown`.
 
 The effective history exclusion is automatically capped at 25% of the number of
 eligible photographs on that dashboard (rounded down). Filename and rating
-exclusions are applied before calculating this cap.
+exclusions are applied before calculating this cap. When the preferred-person\nphotos would otherwise all be excluded, the older half of history is admitted\nprobabilistically (WRED), favouring the oldest entries. The newest half remains\nprotected where possible; if all candidates are in that protected half, the\noldest candidate is used rather than falling back to unrelated people.
 
 ## Documentation
 Further information can be found in the [WallPanel Documentation](https://j-a-n.github.io/lovelace-wallpanel/).
