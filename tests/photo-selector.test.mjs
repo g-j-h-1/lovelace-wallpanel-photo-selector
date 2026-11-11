@@ -15,11 +15,11 @@ test("weighted choice runs independently on each selection", () => {
   assert.equal(selectPhoto(photos, [], 0, () => 0.5), "l");
   assert.equal(selectPhoto(photos, [], 0, () => 0), "p");
 });
-test("recent photos are excluded within the effective history cap", () => {
+test("recent photos are excluded until the pool is exhausted", () => {
   const pool = Array.from({length: 8}, (_, i) => ({url: String(i), orientation: "landscape", weight: 1}));
   assert.equal(selectPhoto(pool, ["0", "1"], 2, () => 0), "2");
   assert.notEqual(selectPhoto(pool, ["0", "1"], 2, () => 0), "1");
-  // A two-image library has a zero-length exclusion window.
+  // A two-image library must eventually recycle when every photo is excluded.
   assert.equal(selectPhoto(pool.slice(0, 2), ["0", "1"], 2, () => 0), "0");
 });
 test("portrait must be followed by landscape where available", () => {
@@ -42,16 +42,34 @@ test("invalid regex throws instead of silently passing", () => {
   assert.throws(() => filterPhotos(photos, "[", ""), SyntaxError);
 });
 
-test("history never exceeds a quarter of selectable photos", () => {
+test("configured history is capped at a quarter of the eligible library", () => {
   const pool = Array.from({length: 10}, (_, i) => ({url: String(i), weight: 1, orientation: "landscape"}));
   assert.equal(effectiveHistorySize(pool, 50), 2);
   assert.equal(effectiveHistorySize(pool.slice(0, 3), 50), 0);
-  assert.equal(effectiveHistorySize(pool.concat([{url:"excluded",weight:0}]), 50), 2);
   assert.equal(effectiveHistorySize(pool, 1), 1);
 });
-test("selection ignores stale history beyond the 25 percent cap", () => {
-  const pool = Array.from({length: 8}, (_, i) => ({url: String(i), weight: 1, orientation: "landscape"}));
-  assert.equal(selectPhoto(pool, ["0","1","2","3","4","5","6","7"], 50, () => 0), "0");
+test("all first selections are distinct until the effective history cap is reached", () => {
+  const pool = Array.from({length: 200}, (_, i) => ({url: String(i), weight: 1, orientation: "landscape", people: i < 5 ? ["Me"] : []}));
+  let history = [];
+  for (let i = 0; i < 50; i++) {
+    const selected = selectPhoto(pool, history, 50, () => 0, ["Me"]);
+    assert.equal(history.includes(selected), false);
+    history = appendWeightedHistory(history, selected, 50, () => 0);
+    assert.equal(history.length, i + 1);
+  }
+  assert.equal(new Set(history).size, 50);
+  assert.deepEqual(history.slice(0, 5), ["0","1","2","3","4"]);
+});
+test("no eviction occurs while history is below configured capacity", () => {
+  let history = [];
+  for (let i = 0; i < 50; i++) {
+    history = appendWeightedHistory(history, String(i), 50, () => 0);
+    assert.equal(history.length, i + 1);
+    assert.equal(history[0], "0");
+  }
+  const next = appendWeightedHistory(history, "50", 50, () => 0);
+  assert.equal(next.length, 50);
+  assert.equal(next.includes("0"), false);
 });
 
 test("malformed URL escape does not abort filename filtering", () => {
