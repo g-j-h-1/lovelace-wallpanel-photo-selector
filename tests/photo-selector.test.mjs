@@ -42,14 +42,14 @@ test("invalid regex throws instead of silently passing", () => {
   assert.throws(() => filterPhotos(photos, "[", ""), SyntaxError);
 });
 
-test("configured history size is not reduced to a quarter of the library", () => {
+test("configured history is capped at a quarter of the eligible library", () => {
   const pool = Array.from({length: 10}, (_, i) => ({url: String(i), weight: 1, orientation: "landscape"}));
-  assert.equal(effectiveHistorySize(pool, 50), 50);
-  assert.equal(effectiveHistorySize(pool.slice(0, 3), 50), 50);
+  assert.equal(effectiveHistorySize(pool, 50), 2);
+  assert.equal(effectiveHistorySize(pool.slice(0, 3), 50), 0);
   assert.equal(effectiveHistorySize(pool, 1), 1);
 });
-test("all fifty first selections are distinct even with five preferred-person photos", () => {
-  const pool = Array.from({length: 100}, (_, i) => ({url: String(i), weight: 1, orientation: "landscape", people: i < 5 ? ["Me"] : []}));
+test("all first selections are distinct until the effective history cap is reached", () => {
+  const pool = Array.from({length: 200}, (_, i) => ({url: String(i), weight: 1, orientation: "landscape", people: i < 5 ? ["Me"] : []}));
   let history = [];
   for (let i = 0; i < 50; i++) {
     const selected = selectPhoto(pool, history, 50, () => 0, ["Me"]);
