@@ -139,7 +139,7 @@ test("recognised photos in protected half never override history", () => {
 test("five recognised photos wait until the halfway point of 42-entry history", () => {
   const pool = [
     ...Array.from({length: 5}, (_,i)=>({url:"me"+i,weight:1,orientation:"landscape",people:["Me"]})),
-    ...Array.from({length: 158}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
+    ...Array.from({length: 163}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
   ];
   let history = [...Array.from({length: 37}, (_,i)=>"other"+i), ...Array.from({length: 5}, (_,i)=>"me"+i)];
   for (let i=0; i<17; i++) {
