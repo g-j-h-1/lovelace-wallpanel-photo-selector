@@ -1,0 +1,43 @@
+name: Build WallPanel bundle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'wallpanel-src.js'
+      - 'photo-selector.mjs'
+      - 'rollup.config.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/build-wallpanel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build bundled JavaScript
+        run: npm run build
+      - name: Commit updated wallpanel.js
+        run: |
+          if git diff --quiet -- wallpanel.js; then
+            echo 'wallpanel.js already up to date'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add wallpanel.js
+          git commit -m 'Build wallpanel.js for HACS [skip ci]'
+          git push
