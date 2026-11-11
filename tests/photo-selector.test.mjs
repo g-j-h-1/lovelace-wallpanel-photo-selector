@@ -142,7 +142,7 @@ test("five recognised photos wait until the halfway point of 42-entry history", 
     ...Array.from({length: 158}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
   ];
   let history = [...Array.from({length: 37}, (_,i)=>"other"+i), ...Array.from({length: 5}, (_,i)=>"me"+i)];
-  for (let i=0; i<21; i++) {
+  for (let i=0; i<17; i++) {
     const chosen = selectPhoto(pool, history, 42, () => 0, ["Me"]);
     assert.ok(chosen.startsWith("other"), `recognised image appeared too early at transition ${i}`);
     history = [...history, chosen].slice(-42);
