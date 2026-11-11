@@ -19,25 +19,26 @@ export function effectiveHistorySize(items, configuredSize = 5) {
   return Math.min(requested, Math.floor(eligibleCount / 4));
 }
 
-/**
- * Apply weighted random early drop (WRED) to recent-history exclusions.
- * The newest half remains protected. Photos in the oldest half become
- * increasingly eligible with age (linear probability from 0 to 1).
- * The final displayed image is always protected when history is enabled.
- */
-export function wredHistoryEligibility(items, recent = [], historySize = 5, random = Math.random) {
-  const history = recent.slice(-Math.max(0, Math.floor(Number(historySize) || 0)));
-  if (!history.length) return items;
-  const protectedCount = Math.ceil(history.length / 2);
-  const oldestCount = history.length - protectedCount;
-  const latestIndex = new Map(history.map((url, index) => [url, index]));
-  return items.filter(item => {
-    const index = latestIndex.get(item.url);
-    if (index === undefined) return true;
-    if (index >= oldestCount) return false;
-    // Oldest entry is fully eligible; more recent entries progressively less so.
-    return random() < (oldestCount - index) / oldestCount;
-  });
+/** Append a photo, evicting a weighted-random member of the oldest half at capacity. */
+export function appendWeightedHistory(recent = [], selected, size = 5, random = Math.random) {
+  const limit = Math.max(0, Math.floor(Number(size) || 0));
+  if (!limit) return [];
+  const history = recent.slice(-limit);
+  if (!selected) return history;
+  const next = history.filter(url => url !== selected);
+  if (next.length >= limit) {
+    const oldestCount = Math.ceil(limit / 2);
+    const total = oldestCount * (oldestCount + 1) / 2;
+    let ticket = Math.max(0, Math.min(1 - Number.EPSILON, random())) * total;
+    let removeIndex = oldestCount - 1;
+    for (let i = 0; i < oldestCount; i++) {
+      ticket -= oldestCount - i;
+      if (ticket < 0) { removeIndex = i; break; }
+    }
+    next.splice(removeIndex, 1);
+  }
+  next.push(selected);
+  return next;
 }
 
 /** Select a single image from the full pool on every transition. */
@@ -52,29 +53,24 @@ export function selectPhoto(items, recent = [], historySize = 5, random = Math.r
   const oriented = requireLandscape ? pool.filter(item => item.orientation === "landscape") : pool;
   const cappedHistorySize = effectiveHistorySize(pool, historySize);
   const history = cappedHistorySize > 0 ? recent.slice(-cappedHistorySize) : [];
+  let eligible = oriented.filter(item => !history.includes(item.url));
+  // For small collections relax the oldest exclusions, never rating-zero exclusions.
+  for (let n = 1; !eligible.length && n <= history.length; n++) {
+    eligible = oriented.filter(item => !history.slice(n).includes(item.url));
+  }
+  if (!eligible.length) eligible = oriented;
+  // Prefer identified people after rating, orientation and recent-history exclusions.
+  // If no eligible matching photograph exists, retain the ordinary slideshow.
   const preferred = new Set(preferredNames.map(name => String(name).trim().toLocaleLowerCase()).filter(Boolean));
-  const matchCount = item => new Set((item.people || [])
-    .map(name => String(name).trim().toLocaleLowerCase())
-    .filter(name => preferred.has(name))).size;
-
-  // History eligibility comes BEFORE facial-recognition preference. Never
-  // re-admit a recent recognised-person photo just because its pool is small.
-  // The newest half of history is strictly excluded; the older half is
-  // available with an age-dependent selection weight.
-  const historyIndex = new Map(history.map((url, index) => [url, index]));
-  const olderCount = Math.floor(history.length / 2);
-  const candidates = oriented.map(item => {
-    const index = historyIndex.get(item.url);
-    if (index !== undefined && index >= olderCount) return null;
-    // Entries outside history have full weight. In the older half, the oldest
-    // gets full weight and the youngest gets 1/olderCount of its normal weight.
-    const ageFactor = index === undefined ? 1 : (olderCount - index) / olderCount;
-    return { ...item, weight: Number(item.weight) * ageFactor };
-  }).filter(Boolean);
-  if (!candidates.length) return null;
-
-  const bestCount = preferred.size ? Math.max(0, ...candidates.map(matchCount)) : 0;
-  const eligible = bestCount > 0 ? candidates.filter(item => matchCount(item) === bestCount) : candidates;
+  if (preferred.size) {
+    // Prefer the photograph containing the greatest number of currently
+    // recognised people, rather than treating any single match equally.
+    const matchCount = item => new Set((item.people || [])
+      .map(name => String(name).trim().toLocaleLowerCase())
+      .filter(name => preferred.has(name))).size;
+    const bestCount = Math.max(0, ...eligible.map(matchCount));
+    if (bestCount > 0) eligible = eligible.filter(item => matchCount(item) === bestCount);
+  }
   const total = eligible.reduce((sum, item) => sum + Number(item.weight), 0);
   let ticket = Math.max(0, Math.min(1 - Number.EPSILON, random())) * total;
   for (const item of eligible) {
