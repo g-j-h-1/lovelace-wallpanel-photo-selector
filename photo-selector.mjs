@@ -57,25 +57,24 @@ export function selectPhoto(items, recent = [], historySize = 5, random = Math.r
     .map(name => String(name).trim().toLocaleLowerCase())
     .filter(name => preferred.has(name))).size;
 
-  // Honour person matching before relaxing history. Otherwise an unrelated,
-  // never-seen photograph can repeatedly beat a photograph of the present person.
-  const bestCount = preferred.size ? Math.max(0, ...oriented.map(matchCount)) : 0;
-  const preferredPool = bestCount > 0 ? oriented.filter(item => matchCount(item) === bestCount) : oriented;
+  // History eligibility comes BEFORE facial-recognition preference. Never
+  // re-admit a recent recognised-person photo just because its pool is small.
+  // The newest half of history is strictly excluded; the older half is
+  // available with an age-dependent selection weight.
+  const historyIndex = new Map(history.map((url, index) => [url, index]));
+  const olderCount = Math.floor(history.length / 2);
+  const candidates = oriented.map(item => {
+    const index = historyIndex.get(item.url);
+    if (index !== undefined && index >= olderCount) return null;
+    // Entries outside history have full weight. In the older half, the oldest
+    // gets full weight and the youngest gets 1/olderCount of its normal weight.
+    const ageFactor = index === undefined ? 1 : (olderCount - index) / olderCount;
+    return { ...item, weight: Number(item.weight) * ageFactor };
+  }).filter(Boolean);
+  if (!candidates.length) return null;
 
-  // Try normal strict exclusion first, then admit older recent photos using WRED
-  // whenever the preferred pool is exhausted. Retain hard protection of the
-  // most recent image except when only that one image can possibly be shown.
-  let eligible = preferredPool.filter(item => !history.includes(item.url));
-  if (!eligible.length) eligible = wredHistoryEligibility(preferredPool, history, history.length, random);
-  if (!eligible.length) {
-    // Fallback for a tiny pool: admit the oldest available image first.
-    // If there are multiple options, avoid immediately repeating the last one.
-    const distinct = preferredPool.filter(item => item.url !== last);
-    const fallback = distinct.length ? distinct : preferredPool;
-    const mostRecent = new Map(history.map((url, index) => [url, index]));
-    const oldestIndex = Math.min(...fallback.map(item => mostRecent.get(item.url) ?? -1));
-    eligible = fallback.filter(item => (mostRecent.get(item.url) ?? -1) === oldestIndex);
-  }
+  const bestCount = preferred.size ? Math.max(0, ...candidates.map(matchCount)) : 0;
+  const eligible = bestCount > 0 ? candidates.filter(item => matchCount(item) === bestCount) : candidates;
   const total = eligible.reduce((sum, item) => sum + Number(item.weight), 0);
   let ticket = Math.max(0, Math.min(1 - Number.EPSILON, random())) * total;
   for (const item of eligible) {

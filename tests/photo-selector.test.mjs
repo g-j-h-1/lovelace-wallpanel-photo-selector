@@ -17,7 +17,8 @@ test("weighted choice runs independently on each selection", () => {
 });
 test("recent photos are excluded within the effective history cap", () => {
   const pool = Array.from({length: 8}, (_, i) => ({url: String(i), orientation: "landscape", weight: 1}));
-  assert.equal(selectPhoto(pool, ["0", "1"], 2, () => 0), "2");
+  assert.equal(selectPhoto(pool, ["0", "1"], 2, () => 0), "0");
+  assert.notEqual(selectPhoto(pool, ["0", "1"], 2, () => 0), "1");
   // A two-image library has a zero-length exclusion window.
   assert.equal(selectPhoto(pool.slice(0, 2), ["0", "1"], 2, () => 0), "0");
 });
@@ -119,22 +120,51 @@ test("WRED protects newest half and progressively admits older history", () => {
   assert.deepEqual(wredHistoryEligibility(pool, history, 6, () => 0).map(x => x.url), ["0", "1", "2", "6", "7"]);
   assert.deepEqual(wredHistoryEligibility(pool, history, 6, () => 0.99).map(x => x.url), ["0", "6", "7"]);
 });
-test("recognised person keeps priority when all their photos are in history", () => {
+test("recognised photos in protected half never override history", () => {
   const pool = [
-    {url:"a", weight:1, orientation:"landscape", people:["A"]},
-    {url:"b", weight:1, orientation:"landscape", people:["A"]},
-    {url:"c", weight:1, orientation:"landscape", people:["A"]},
-    {url:"unrelated", weight:1, orientation:"landscape", people:[]},
-    ...Array.from({length: 20}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
+    ...Array.from({length: 5}, (_,i)=>({url:"me"+i,weight:1,orientation:"landscape",people:["Me"]})),
+    ...Array.from({length: 163}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
   ];
-  const history = ["a","b","c"];
-  assert.equal(selectPhoto(pool, history, 12, () => 0, ["A"]), "a");
-  assert.notEqual(selectPhoto(pool, ["a","b","c"], 12, () => 0.99, ["A"]), "c");
+  const history = [
+    ...Array.from({length: 5}, (_,i)=>"me"+i),
+    ...Array.from({length: 37}, (_,i)=>"other"+i)
+  ];
+  // All five recognised photos are now in the oldest half and are eligible.
+  assert.ok(selectPhoto(pool, history, 42, () => 0, ["Me"]).startsWith("me"));
+  const protectedHistory = [
+    ...Array.from({length: 37}, (_,i)=>"other"+i),
+    ...Array.from({length: 5}, (_,i)=>"me"+i)
+  ];
+  assert.ok(selectPhoto(pool, protectedHistory, 42, () => 0, ["Me"]).startsWith("other"));
 });
-test("single recognised photo may repeat only when no alternative matches", () => {
+test("five recognised photos wait until the halfway point of 42-entry history", () => {
+  const pool = [
+    ...Array.from({length: 5}, (_,i)=>({url:"me"+i,weight:1,orientation:"landscape",people:["Me"]})),
+    ...Array.from({length: 163}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
+  ];
+  let history = [...Array.from({length: 37}, (_,i)=>"other"+i), ...Array.from({length: 5}, (_,i)=>"me"+i)];
+  for (let i=0; i<17; i++) {
+    const chosen = selectPhoto(pool, history, 42, () => 0, ["Me"]);
+    assert.ok(chosen.startsWith("other"), `recognised image appeared too early at transition ${i}`);
+    history = [...history, chosen].slice(-42);
+  }
+  assert.ok(selectPhoto(pool, history, 42, () => 0, ["Me"]).startsWith("me"));
+});
+test("older history entries receive stronger selection weighting", () => {
+  const pool = [
+    {url:"old",weight:1,orientation:"landscape",people:["Me"]},
+    {url:"young",weight:1,orientation:"landscape",people:["Me"]},
+    ...Array.from({length: 30}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
+  ];
+  const history = ["old","young","other0","other1","other2","other3","other4","other5"];
+  // old gets 1.0x and young gets 0.75x; the ticket selects by these weights.
+  assert.equal(selectPhoto(pool, history, 8, () => 0.5, ["Me"]), "old");
+  assert.equal(selectPhoto(pool, history, 8, () => 0.9, ["Me"]), "young");
+});
+test("a single recognised photo in protected history yields unrelated photos", () => {
   const pool = [
     {url:"a",weight:1,orientation:"landscape",people:["A"]},
     ...Array.from({length: 12}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
   ];
-  assert.equal(selectPhoto(pool, ["a"], 8, () => 0.99, ["A"]), "a");
+  assert.notEqual(selectPhoto(pool, ["a"], 8, () => 0.99, ["A"]), "a");
 });
