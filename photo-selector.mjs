@@ -12,11 +12,10 @@ export function getRatingFrequency(rating, frequencies = {}) {
   return Number.isFinite(configured) ? Math.max(0, configured) : DEFAULT_RATING_FREQUENCIES[key];
 }
 
-/** Cap recent-history exclusions to 25% of selectable photographs. */
+/** Respect the configured history capacity; do not shrink it based on the photo pool. */
 export function effectiveHistorySize(items, configuredSize = 5) {
-  const eligibleCount = items.filter(item => Number.isFinite(Number(item.weight)) && Number(item.weight) > 0).length;
   const requested = Math.max(0, Math.floor(Number(configuredSize) || 0));
-  return Math.min(requested, Math.floor(eligibleCount / 4));
+  return requested;
 }
 
 /** Append a photo, evicting a weighted-random member of the oldest half at capacity. */
@@ -54,10 +53,9 @@ export function selectPhoto(items, recent = [], historySize = 5, random = Math.r
   const cappedHistorySize = effectiveHistorySize(pool, historySize);
   const history = cappedHistorySize > 0 ? recent.slice(-cappedHistorySize) : [];
   let eligible = oriented.filter(item => !history.includes(item.url));
-  // For small collections relax the oldest exclusions, never rating-zero exclusions.
-  for (let n = 1; !eligible.length && n <= history.length; n++) {
-    eligible = oriented.filter(item => !history.slice(n).includes(item.url));
-  }
+  // Preserve history even when no preferred or correctly oriented photo remains.
+  // Relax orientation first, and only recycle photos if the entire pool is exhausted.
+  if (!eligible.length) eligible = pool.filter(item => !history.includes(item.url));
   if (!eligible.length) eligible = oriented;
   // Prefer identified people after rating, orientation and recent-history exclusions.
   // If no eligible matching photograph exists, retain the ordinary slideshow.
