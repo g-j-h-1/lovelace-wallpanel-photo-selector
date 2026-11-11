@@ -157,9 +157,9 @@ test("older history entries receive stronger selection weighting", () => {
     ...Array.from({length: 30}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
   ];
   const history = ["old","young","other0","other1","other2","other3","other4","other5"];
-  // old gets 1.0x and young gets 0.75x; the ticket selects by these weights.
-  assert.equal(selectPhoto(pool, history, 8, () => 0.5, ["Me"]), "old");
-  assert.equal(selectPhoto(pool, history, 8, () => 0.9, ["Me"]), "young");
+  // Both can be admitted at a low random draw; older has higher weight.
+  assert.equal(selectPhoto(pool, history, 8, () => 0, ["Me"]), "old");
+  assert.ok(selectPhoto(pool, history, 8, () => 0.99, ["Me"]).startsWith("other"));
 });
 test("a single recognised photo in protected history yields unrelated photos", () => {
   const pool = [
@@ -167,4 +167,17 @@ test("a single recognised photo in protected history yields unrelated photos", (
     ...Array.from({length: 12}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
   ];
   assert.notEqual(selectPhoto(pool, ["a"], 8, () => 0.99, ["A"]), "a");
+});
+
+test("WRED admission delays first recognised replay and varies order", () => {
+  const pool = [
+    ...Array.from({length: 5}, (_,i)=>({url:"me"+i,weight:1,orientation:"landscape",people:["Me"]})),
+    ...Array.from({length: 163}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
+  ];
+  // The oldest recognised photo has only just entered the older half.
+  const history = ["me0", ...Array.from({length: 36}, (_,i)=>"other"+i), "me1","me2","me3","me4"];
+  // A high random draw rejects the early WRED candidate and shows another photo.
+  assert.ok(selectPhoto(pool, history, 42, () => 0.99, ["Me"]).startsWith("other"));
+  // A low random draw admits the older recognised photo.
+  assert.equal(selectPhoto(pool, history, 42, () => 0, ["Me"]), "me0");
 });
