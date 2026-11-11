@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getRatingFrequency, matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize, wredHistoryEligibility, parseRecognisedPeople } from "../photo-selector.mjs";
+import { getRatingFrequency, matchPhotoMetadata, selectPhoto, filterPhotos, effectiveHistorySize, appendWeightedHistory, parseRecognisedPeople } from "../photo-selector.mjs";
 
 const photos = [
   { url: "p", orientation: "portrait", weight: 1 },
@@ -114,57 +114,23 @@ test("group photos outrank photos containing just one recognised person", () => 
   assert.equal(selectPhoto(pool, ["both"], 0, () => 0, ["Person B"]), "b");
 });
 
-test("WRED protects newest half and progressively admits older history", () => {
-  const pool = Array.from({length: 8}, (_, i) => ({url: String(i), weight: 1}));
-  const history = ["0", "1", "2", "3", "4", "5"];
-  assert.deepEqual(wredHistoryEligibility(pool, history, 6, () => 0).map(x => x.url), ["0", "1", "2", "6", "7"]);
-  assert.deepEqual(wredHistoryEligibility(pool, history, 6, () => 0.99).map(x => x.url), ["0", "6", "7"]);
-});
-test("recognised photos in protected half never override history", () => {
-  const pool = [
-    ...Array.from({length: 5}, (_,i)=>({url:"me"+i,weight:1,orientation:"landscape",people:["Me"]})),
-    ...Array.from({length: 163}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
-  ];
-  const history = [
-    ...Array.from({length: 5}, (_,i)=>"me"+i),
-    ...Array.from({length: 37}, (_,i)=>"other"+i)
-  ];
-  // All five recognised photos are now in the oldest half and are eligible.
-  assert.ok(selectPhoto(pool, history, 42, () => 0, ["Me"]).startsWith("me"));
-  const protectedHistory = [
-    ...Array.from({length: 37}, (_,i)=>"other"+i),
-    ...Array.from({length: 5}, (_,i)=>"me"+i)
-  ];
-  assert.ok(selectPhoto(pool, protectedHistory, 42, () => 0, ["Me"]).startsWith("other"));
-});
-test("five recognised photos wait until the halfway point of 42-entry history", () => {
-  const pool = [
-    ...Array.from({length: 5}, (_,i)=>({url:"me"+i,weight:1,orientation:"landscape",people:["Me"]})),
-    ...Array.from({length: 163}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
-  ];
-  let history = [...Array.from({length: 37}, (_,i)=>"other"+i), ...Array.from({length: 5}, (_,i)=>"me"+i)];
-  for (let i=0; i<17; i++) {
-    const chosen = selectPhoto(pool, history, 42, () => 0, ["Me"]);
-    assert.ok(chosen.startsWith("other"), `recognised image appeared too early at transition ${i}`);
-    history = [...history, chosen].slice(-42);
+
+test("weighted eviction only removes an entry from oldest half", () => {
+  const history = Array.from({length: 50}, (_,i)=>String(i));
+  for (const random of [0,0.2,0.5,0.99]) {
+    const next = appendWeightedHistory(history, "new", 50, () => random);
+    assert.equal(next.length, 50);
+    assert.deepEqual(next.slice(-26,-1), history.slice(25));
+    assert.equal(next.at(-1), "new");
+    assert.equal(history.slice(25).every(url=>next.includes(url)), true);
   }
-  assert.ok(selectPhoto(pool, history, 42, () => 0, ["Me"]).startsWith("me"));
+  assert.equal(appendWeightedHistory(history, "new", 50, ()=>0).includes("0"), false);
+  assert.equal(appendWeightedHistory(history, "new", 50, ()=>0.99).includes("24"), false);
 });
-test("older history entries receive stronger selection weighting", () => {
-  const pool = [
-    {url:"old",weight:1,orientation:"landscape",people:["Me"]},
-    {url:"young",weight:1,orientation:"landscape",people:["Me"]},
-    ...Array.from({length: 30}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
-  ];
-  const history = ["old","young","other0","other1","other2","other3","other4","other5"];
-  // old gets 1.0x and young gets 0.75x; the ticket selects by these weights.
-  assert.equal(selectPhoto(pool, history, 8, () => 0.5, ["Me"]), "old");
-  assert.equal(selectPhoto(pool, history, 8, () => 0.9, ["Me"]), "young");
-});
-test("a single recognised photo in protected history yields unrelated photos", () => {
-  const pool = [
-    {url:"a",weight:1,orientation:"landscape",people:["A"]},
-    ...Array.from({length: 12}, (_,i)=>({url:"other"+i,weight:1,orientation:"landscape",people:[]}))
-  ];
-  assert.notEqual(selectPhoto(pool, ["a"], 8, () => 0.99, ["A"]), "a");
+test("history stays strict until a photo is evicted", () => {
+  const pool = Array.from({length: 200},(_,i)=>({url:String(i),weight:1,orientation:"landscape",people:i<5?["Me"]:[]}));
+  const history = Array.from({length: 50},(_,i)=>String(i));
+  const next = appendWeightedHistory(history,"new",50,()=>0);
+  assert.equal(selectPhoto(pool,next,50,()=>0,["Me"]),"0");
+  assert.notEqual(selectPhoto(pool,history,50,()=>0,["Me"]),"0");
 });
